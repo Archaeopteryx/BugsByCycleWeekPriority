@@ -5,8 +5,8 @@
 import csv
 from dateutil.relativedelta import relativedelta
 from libmozdata.bugzilla import Bugzilla
-from .logger import logger
-from . import buildhub, utils
+from logger import logger
+import buildhub, utils
 
 
 SEVERITIES = {'blocker': 'blocker+critical+major',

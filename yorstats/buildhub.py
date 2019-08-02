@@ -5,8 +5,8 @@
 import json
 import requests
 import time
-from .logger import logger
-from . import utils
+from logger import logger
+import utils
 
 
 URL = (
