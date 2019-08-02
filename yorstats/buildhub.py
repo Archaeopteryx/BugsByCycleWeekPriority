@@ -10,7 +10,7 @@ import utils
 
 
 URL = (
-    'https://buildhub.prod.mozaws.net/v1/buckets/build-hub/collections/releases/search'
+    'https://buildhub.moz.tools/api/search'
 )
 
 
