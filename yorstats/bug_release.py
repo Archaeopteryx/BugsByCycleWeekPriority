@@ -21,7 +21,7 @@ WFMT = '{}-{:02d}'
 
 def get_weeks(start_date, end_date):
     res = []
-    while start_date <= end_date:
+    while start_date.strftime('%Y-%W') <= end_date.strftime('%Y-%W'):
         y, w, _ = start_date.isocalendar()
         res.append(WFMT.format(y, w))
         start_date += relativedelta(days=7)
