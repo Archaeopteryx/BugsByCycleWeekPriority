@@ -2,12 +2,23 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
+# This scripts generates a report of the number of bugs created by week and
+# grouped by severity for a given version number which got fixed before the
+# release of that version.
+# It does not imply that the code regressed during that version number, only
+# that it initially got reported when it was in either Nightly (central) or
+# Beta stage. The issue can have affected also lower version numbers if it got
+# missed before or the regressing code got added to repository containing the
+# lower version number ("uplift").
+
 import csv
 from dateutil.relativedelta import relativedelta
 from libmozdata.bugzilla import Bugzilla
 from logger import logger
 import buildhub, utils
 
+# TODO: Drop deprecated severities once existing uses have been updated
+#       https://bugzilla.mozilla.org/show_bug.cgi?id=1564608
 SEVERITIES = {'blocker': 'blocker+critical+major',
               'critical': 'blocker+critical+major',
               'major': 'blocker+critical+major',
