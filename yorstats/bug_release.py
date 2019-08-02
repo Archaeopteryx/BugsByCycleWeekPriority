@@ -8,7 +8,6 @@ from libmozdata.bugzilla import Bugzilla
 from logger import logger
 import buildhub, utils
 
-
 SEVERITIES = {'blocker': 'blocker+critical+major',
               'critical': 'blocker+critical+major',
               'major': 'blocker+critical+major',
@@ -47,9 +46,16 @@ def get_bugs(major):
     fields = ['creation_time', 'severity']
     params = {
         'include_fields': fields,
-        'product': ['Firefox', 'Core', 'Firefox for Android',
-                    'DevTools', 'Firefox Build System',
-                    'Testing', 'Toolkit', 'WebExtensions'],
+        'product': [
+            'Core',
+            'DevTools',
+            'Firefox',
+            'Firefox Build System',
+            'Firefox for Android',
+            'Testing',
+            'Toolkit',
+            'WebExtensions',
+        ],
         'f1': 'creation_ts',
         'o1': 'greaterthaneq',
         'v1': '',
