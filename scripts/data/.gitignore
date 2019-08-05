@@ -1,0 +1,6 @@
+# Ignore generated reports which are saved into this folder.
+*
+# Don't ignore this file so the 'data' folder can be version controlled and
+# is available after checkout else users have to manually create it or get an
+# error message if they create a report.
+!.gitignore
