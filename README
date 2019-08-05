@@ -1,0 +1,11 @@
+Gets statistics by week and severity on bugs opened during development and which got fixed before release for a Firefox version.
+
+To generate the reports, run the following command in the scripts folder:
+
+python bug_release.py <version>
+
+E.g.
+
+python bug_release.py 63
+
+The output is a .csv file which is put into the folder scripts/data/
