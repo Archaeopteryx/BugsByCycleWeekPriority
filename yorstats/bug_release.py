@@ -11,6 +11,7 @@
 # missed before or the regressing code got added to repository containing the
 # lower version number ("uplift").
 
+from argparse import ArgumentParser
 import csv
 from dateutil.relativedelta import relativedelta
 from libmozdata.bugzilla import Bugzilla
@@ -130,4 +131,11 @@ def write_csv(major):
         writer.writerow(['First beta', data['first_beta']])
 
 
-write_csv(64)
+parser = ArgumentParser(description='Count bugs created and fixed before release, by week')
+parser.add_argument('product_version', type=int,
+                    help='Firefox version')
+args = parser.parse_args()
+# Firefox version for which the report gets generated.
+product_version = args.product_version
+
+write_csv(product_version)
