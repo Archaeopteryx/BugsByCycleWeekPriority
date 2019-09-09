@@ -11,9 +11,10 @@
 # missed before or the regressing code got added to repository containing the
 # lower version number ("uplift").
 
-from argparse import ArgumentParser
+import argparse
 import csv
 from dateutil.relativedelta import relativedelta
+import json
 from libmozdata.bugzilla import Bugzilla
 from logger import logger
 import buildhub, utils
@@ -29,6 +30,24 @@ SEVERITIES = {'blocker': 'blocker+critical+major',
 
 WFMT = '{}-{:02d}'
 
+# Bugzilla data can be loaded from file
+bugzilla_data_loaded = None
+
+# Bugzilla data can be saved froto file
+bugzilla_data_to_save = {}
+
+
+def add_bugzilla_data_to_save(node_path, data):
+    # node_path is an array of strings representing the nodes in the JSON to
+    # which the data shall be saved. The node has a child 'data' which holds the
+    # data.
+    node = bugzilla_data_to_save
+    for path_step in node_path:
+        if not path_step in node:
+            node[path_step] = {'data': []}
+        node = node[path_step]
+    node['data'].append(data)
+
 
 def get_weeks(start_date, end_date):
     res = []
@@ -42,8 +61,9 @@ def get_weeks(start_date, end_date):
 def get_bugs(major):
 
     def bug_handler(bug, data):
+        if bzdata_save_path:
+            add_bugzilla_data_to_save(['opened', 'nightly'], bug)
         sev = bug['severity']
-        del bug['severity']
         creation = utils.get_date(bug['creation_time'])
         year, week, _ = creation.isocalendar()
         t = WFMT.format(year, week)
@@ -90,30 +110,40 @@ def get_bugs(major):
         'v7': 'affected, fix-optional, fixed, wontfix, verified, disabled'
     }
 
-    while start_date <= final_date:
-        end_date = start_date + relativedelta(days=30)
-        params = params.copy()
+    # Load Bugzilla data from file
+    if bzdata_load_path:
+        for bug_data in bugzilla_data_loaded['opened']['nightly']['data']:
+            bug_handler(bug_data, data)
+    # Load Bugzilla data from Bugzilla server
+    else:
+        while start_date <= final_date:
+            end_date = start_date + relativedelta(days=30)
+            params = params.copy()
 
-        # start_date <= creation_ts < end_date
-        params['v1'] = start_date
-        params['v2'] = end_date
-        
-        logger.info('Bugzilla: From {} To {}'.format(start_date, end_date))
+            # start_date <= creation_ts < end_date
+            params['v1'] = start_date
+            params['v2'] = end_date
+            
+            logger.info('Bugzilla: From {} To {}'.format(start_date, end_date))
 
-        queries.append(Bugzilla(params,
-                                bughandler=bug_handler,
-                                bugdata=data,
-                                timeout=960))
-        start_date = end_date
+            queries.append(Bugzilla(params,
+                                    bughandler=bug_handler,
+                                    bugdata=data,
+                                    timeout=960))
+            start_date = end_date
 
-    for q in queries:
-        q.get_data().wait()
+        for q in queries:
+            q.get_data().wait()
 
     first_beta = buildhub.get_first_beta(major)
     y, w, _ = first_beta.isocalendar()
     data['first_beta'] = WFMT.format(y, w)
 
     return data
+
+
+def log(message):
+    print(message)
 
 
 def write_csv(major):
@@ -131,11 +161,52 @@ def write_csv(major):
         writer.writerow(['First beta', data['first_beta']])
 
 
-parser = ArgumentParser(description='Count bugs created and fixed before release, by week')
+parser = argparse.ArgumentParser(description='Count bugs created and fixed before release, by week')
 parser.add_argument('product_version', type=int,
                     help='Firefox version')
+parser.add_argument('--bzdata-load',
+                    nargs='?',
+                    default=argparse.SUPPRESS,
+                    help='Load the Bugzilla data from a local JSON file. If no path is provided '
+                         'the program will try to load "bugzilla_data_<versionnumber>.json" from the "data" folder.')
+parser.add_argument('--bzdata-save',
+                    nargs='?',
+                    default=argparse.SUPPRESS,
+                    help='Save the Bugzilla data to a local JSON file. If no path is provided '
+                         'the program will try to save as "bugzilla_data_<versionnumber>.json" into the "data" folder.')
 args = parser.parse_args()
+
 # Firefox version for which the report gets generated.
 product_version = args.product_version
 
+bzdata_load_path = None
+if 'bzdata_load' in args:
+    # Load Bugzilla data from file
+    if args.bzdata_load:
+        # File path provided as command line argument
+        bzdata_load_path = args.bzdata_load
+    else:
+        # No file path provided, use default location
+        bzdata_load_path = 'data/bugzilla_data_{}.json'.format(product_version)
+    with open(bzdata_load_path, 'r') as bugzilla_data_reader:
+        bugzilla_data_loaded = json.load(bugzilla_data_reader)
+    log('Loaded Bugzilla data from {}'.format(bzdata_load_path))
+
+bzdata_save_path = None
+if 'bzdata_save' in args:
+    # File path to which Bugzilla data shall be saved
+    if args.bzdata_save:
+        # File path provided as command line argument
+        bzdata_save_path = args.bzdata_save
+    else:
+        # No file path provided, use default location
+        bzdata_save_path = 'data/bugzilla_data_{}.json'.format(product_version)
+
 write_csv(product_version)
+
+if bzdata_save_path:
+    # Save Bugzilla data to file
+    with open('data/bugzilla_data_{}.json'.format(product_version), 'w') as bugzilla_data_writer:
+        bugzilla_data_writer.write(json.dumps(bugzilla_data_to_save))
+        log('Saved Bugzilla data to {}'.format(bzdata_save_path))
+
