@@ -150,6 +150,15 @@ def write_csv(major):
     data = get_bugs(major)
     with open('data/bugs_count_{}.csv'.format(major), 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
+
+        first_beta = buildhub.get_first_beta(major)
+        y, w, _ = first_beta.isocalendar()
+        first_beta_str = WFMT.format(y, w)
+        writer.writerow(['First beta', first_beta_str])
+
+        writer.writerow([])
+        writer.writerow([])
+
         weeks = list(sorted(data['normal'].keys()))
         head = ['Severity'] + weeks
         writer.writerow(head)
@@ -157,8 +166,6 @@ def write_csv(major):
             numbers = data[sev]
             numbers = [numbers[w] for w in weeks]
             writer.writerow([sev] + numbers)
-        writer.writerow([])
-        writer.writerow(['First beta', data['first_beta']])
 
 
 parser = argparse.ArgumentParser(description='Count bugs created and fixed before release, by week')
