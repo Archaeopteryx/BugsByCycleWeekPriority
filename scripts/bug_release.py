@@ -121,7 +121,7 @@ def get_bugs(major):
 
             # query_start <= creation_ts < end_date
             params['v1'] = query_start
-            params['v2'] = end_date
+            params['v2'] = min(end_date, beta_start)
             
             logger.info('Bugzilla: From {} To {}'.format(query_start, end_date))
 
