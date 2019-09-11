@@ -20,6 +20,17 @@ from logger import logger
 import productdates
 import utils
 
+PRODUCTS_TO_CHECK = [
+    'Core',
+    'DevTools',
+    'Firefox',
+    'Firefox Build System',
+    'Firefox for Android',
+    'Testing',
+    'Toolkit',
+    'WebExtensions',
+]
+
 # TODO: Drop deprecated severities once existing uses have been updated
 #       https://bugzilla.mozilla.org/show_bug.cgi?id=1564608
 SEVERITIES = {'blocker': 'blocker+critical+major',
@@ -72,41 +83,6 @@ def get_bugs(major):
 
     weeks = get_weeks(nightly_start, beta_start)
     data = {sev: {w: 0 for w in weeks} for sev in set(SEVERITIES.values())}
-    queries = []
-    fields = ['creation_time', 'severity']
-    params = {
-        'include_fields': fields,
-        'product': [
-            'Core',
-            'DevTools',
-            'Firefox',
-            'Firefox Build System',
-            'Firefox for Android',
-            'Testing',
-            'Toolkit',
-            'WebExtensions',
-        ],
-        'f1': 'creation_ts',
-        'o1': 'greaterthaneq',
-        'v1': '',
-        'f2': 'creation_ts',
-        'o2': 'lessthan',
-        'v2': '',
-        'f3': 'cf_last_resolved',
-        'o3': 'lessthan',
-        'v3': release_date,
-        'f4': 'bug_severity',
-        'o4': 'notequals',
-        'v4': 'enhancement',
-        'f5': 'keywords',
-        'o5': 'notsubstring',
-        'v5': 'meta',
-        'f6': 'resolution',
-        'o6': 'isnotempty',
-        'f7': 'cf_status_firefox' + str(major),
-        'o7': 'anyexact',
-        'v7': 'affected, fix-optional, fixed, wontfix, verified, disabled'
-    }
 
     # Load Bugzilla data from file
     if bzdata_load_path:
@@ -114,22 +90,93 @@ def get_bugs(major):
             bug_handler(bug_data, data)
     # Load Bugzilla data from Bugzilla server
     else:
-        query_start = nightly_start
-        while query_start <= beta_start:
-            end_date = query_start + relativedelta(days=30)
-            params = params.copy()
+        queries = []
+        fields = ['creation_time', 'severity']
 
-            # query_start <= creation_ts < end_date
-            params['v1'] = query_start
-            params['v2'] = min(end_date, beta_start)
-            
-            logger.info('Bugzilla: From {} To {}'.format(query_start, end_date))
+        nightly_params = {
+            'include_fields': fields,
+            'product': PRODUCTS_TO_CHECK,
+            'f1': 'creation_ts',
+            'o1': 'greaterthaneq',
+            'v1': '',
+            'f2': 'creation_ts',
+            'o2': 'lessthan',
+            'v2': '',
+            'f3': 'cf_last_resolved',
+            'o3': 'lessthan',
+            'v3': beta_start,
+            'f4': 'bug_severity',
+            'o4': 'notequals',
+            'v4': 'enhancement',
+            'f5': 'keywords',
+            'o5': 'notsubstring',
+            'v5': 'meta',
+            'f6': 'resolution',
+            'o6': 'isnotempty',
+            'f7': 'cf_status_firefox' + str(major),
+            'o7': 'anyexact',
+            'v7': 'affected, fix-optional, fixed, wontfix, verified, disabled'
+        }
 
-            queries.append(Bugzilla(params,
-                                    bughandler=bug_handler,
-                                    bugdata=data,
-                                    timeout=960))
-            query_start = end_date
+        beta_params = {
+            'include_fields': fields,
+            'product': PRODUCTS_TO_CHECK,
+            'f1': 'creation_ts',
+            'o1': 'greaterthaneq',
+            'v1': '',
+            'f2': 'creation_ts',
+            'o2': 'lessthan',
+            'v2': '',
+            'f3': 'cf_last_resolved',
+            'o3': 'lessthan',
+            'v3': release_date,
+            'f4': 'bug_severity',
+            'o4': 'notequals',
+            'v4': 'enhancement',
+            'f5': 'keywords',
+            'o5': 'notsubstring',
+            'v5': 'meta',
+            'f6': 'resolution',
+            'o6': 'isnotempty',
+            'f7': 'cf_status_firefox' + str(major),
+            'o7': 'anyexact',
+            'v7': 'affected, fix-optional, fixed, wontfix, verified, disabled'
+        }
+
+        phases = [
+            {
+                'query_params' : nightly_params,
+                'start_date' : nightly_start,
+                'end_date' : beta_start,
+            },
+            {
+                'query_params' : beta_params,
+                'start_date' : beta_start,
+                'end_date' : release_date,
+            },
+        ]
+        for phase in phases:
+            query_start = phase['start_date']
+            print('New phase')
+            print('query_start:', query_start)
+            print('end_date:', phase['end_date'])
+            while query_start <= phase['end_date']:
+                query_end = query_start + relativedelta(days=30)
+                params = phase['query_params'].copy()
+
+                # query_start <= creation_ts < query_end
+                params['v1'] = query_start
+                params['v2'] = min(query_end, phase['end_date'])
+                
+                logger.info('Bugzilla: From {} To {}'.format(query_start, query_end))
+
+                queries.append(Bugzilla(params,
+                                        bughandler=bug_handler,
+                                        bugdata=data,
+                                        timeout=960))
+                query_start = query_end
+                print('query_start:', query_start)
+                print('end_date:', phase['end_date'])
 
         for q in queries:
             q.get_data().wait()
