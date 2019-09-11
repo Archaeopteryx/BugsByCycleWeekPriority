@@ -17,7 +17,8 @@ from dateutil.relativedelta import relativedelta
 import json
 from libmozdata.bugzilla import Bugzilla
 from logger import logger
-import buildhub, utils
+import productdates
+import utils
 
 # TODO: Drop deprecated severities once existing uses have been updated
 #       https://bugzilla.mozilla.org/show_bug.cgi?id=1564608
@@ -69,10 +70,7 @@ def get_bugs(major):
         t = WFMT.format(year, week)
         data[SEVERITIES[sev]][t] += 1
 
-    # start_date is the date for the first nightly
-    # final_date is the date for the first release (or today if no release)
-    start_date, final_date = buildhub.get_range(major)
-    weeks = get_weeks(start_date, final_date)
+    weeks = get_weeks(nightly_start, beta_start)
     data = {sev: {w: 0 for w in weeks} for sev in set(SEVERITIES.values())}
     queries = []
     fields = ['creation_time', 'severity']
@@ -96,7 +94,7 @@ def get_bugs(major):
         'v2': '',
         'f3': 'cf_last_resolved',
         'o3': 'lessthan',
-        'v3': final_date,
+        'v3': release_date,
         'f4': 'bug_severity',
         'o4': 'notequals',
         'v4': 'enhancement',
@@ -116,27 +114,27 @@ def get_bugs(major):
             bug_handler(bug_data, data)
     # Load Bugzilla data from Bugzilla server
     else:
-        while start_date <= final_date:
-            end_date = start_date + relativedelta(days=30)
+        query_start = nightly_start
+        while query_start <= beta_start:
+            end_date = query_start + relativedelta(days=30)
             params = params.copy()
 
-            # start_date <= creation_ts < end_date
-            params['v1'] = start_date
+            # query_start <= creation_ts < end_date
+            params['v1'] = query_start
             params['v2'] = end_date
             
-            logger.info('Bugzilla: From {} To {}'.format(start_date, end_date))
+            logger.info('Bugzilla: From {} To {}'.format(query_start, end_date))
 
             queries.append(Bugzilla(params,
                                     bughandler=bug_handler,
                                     bugdata=data,
                                     timeout=960))
-            start_date = end_date
+            query_start = end_date
 
         for q in queries:
             q.get_data().wait()
 
-    first_beta = buildhub.get_first_beta(major)
-    y, w, _ = first_beta.isocalendar()
+    y, w, _ = beta_start.isocalendar()
     data['first_beta'] = WFMT.format(y, w)
 
     return data
@@ -151,8 +149,7 @@ def write_csv(major):
     with open('data/bugs_count_{}.csv'.format(major), 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
-        first_beta = buildhub.get_first_beta(major)
-        y, w, _ = first_beta.isocalendar()
+        y, w, _ = beta_start.isocalendar()
         first_beta_str = WFMT.format(y, w)
         writer.writerow(['First beta', first_beta_str])
 
@@ -185,6 +182,10 @@ args = parser.parse_args()
 
 # Firefox version for which the report gets generated.
 product_version = args.product_version
+
+# nightly_start is the date for the first nightly
+# beta_start is the datetime the first beta build started (or now if no beta yet)
+nightly_start, beta_start, release_date, successor_release_date = productdates.get_product_dates(product_version)
 
 bzdata_load_path = None
 if 'bzdata_load' in args:
