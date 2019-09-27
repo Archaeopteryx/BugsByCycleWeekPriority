@@ -467,7 +467,7 @@ def write_csv(major):
         writer.writerow(['Opened bugs by week'])
         head = ['priority'] + weeks
         writer.writerow(head)
-        for prio in ['--', 'P1', 'P2', 'P3', 'P4', 'P5']:
+        for prio in PRIORITIES_GROUP_LIST:
             numbers = data_opened[prio]
             numbers = [numbers[w] for w in weeks]
             writer.writerow([prio] + numbers)
