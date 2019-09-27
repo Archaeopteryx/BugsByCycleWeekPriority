@@ -70,6 +70,8 @@ PRIORITIES_GROUP_LIST = [
                    'P1',
                         ]
 
+STATUS_FIXED = STATUS_FIXED
+
 WFMT = '{}-{:02d}'
 
 # Bugzilla data can be loaded from file
@@ -248,9 +250,9 @@ def get_bugs(major):
         if pre_release_phase:
             if status_flag_version_at_release is None:
                 status_flag_version_at_release = status_flag_version_last_processed
-        fixed_before_release = status_flag_version_at_release in ['fixed', 'verified']
-        fixed_in_dot_release = not fixed_before_release and status_flag_version_last_processed in ['fixed', 'verified']
-        fixed_in_successor_release_priority = not fixed_before_release and not fixed_in_dot_release and bug_data[status_flag_successor_version] in ['fixed', 'verified'] and 'P1' in [prio_before_release, prio_after_release]
+        fixed_before_release = status_flag_version_at_release in STATUS_FIXED
+        fixed_in_dot_release = not fixed_before_release and status_flag_version_last_processed in STATUS_FIXED
+        fixed_in_successor_release_priority = not fixed_before_release and not fixed_in_dot_release and bug_data[status_flag_successor_version] in STATUS_FIXED and 'P1' in [prio_before_release, prio_after_release]
         if fixed_in_dot_release:
             fixed_in_dot_release_bugs.append(bug_data_to_export)
         if fixed_in_successor_release_priority:
@@ -281,9 +283,9 @@ def get_bugs(major):
                         break
         if tracking_for_version and not fixed_before_release and fixed_in_dot_release:
             tracked_fixed_in_dot_release_bugs.append(bug_data_to_export)
-        if tracking_for_version and not fixed_before_release and not fixed_in_dot_release and bug_data[status_flag_successor_version] in ['fixed', 'verified']:
+        if tracking_for_version and not fixed_before_release and not fixed_in_dot_release and bug_data[status_flag_successor_version] in STATUS_FIXED:
             tracked_fixed_in_successor_release_bugs.append(bug_data_to_export)
-        if tracking_for_version and not fixed_before_release and not fixed_in_dot_release and not bug_data[status_flag_successor_version] in ['fixed', 'verified']:
+        if tracking_for_version and not fixed_before_release and not fixed_in_dot_release and not bug_data[status_flag_successor_version] in STATUS_FIXED:
             tracked_not_fixed_in_this_or_successor_release_bugs.append(bug_data_to_export)
 
 
