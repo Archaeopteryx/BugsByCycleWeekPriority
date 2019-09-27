@@ -21,6 +21,7 @@
 #   major release.
 
 import argparse
+import copy
 import csv
 import datetime
 from dateutil.relativedelta import relativedelta
@@ -296,7 +297,7 @@ def get_bugs(major):
     tracked_fixed_in_successor_release_bugs = []
     tracked_not_fixed_in_this_or_successor_release_bugs = []
 
-    weeks_opened = get_weeks(nightly_start, release_date)
+    weeks_opened = copy.deepcopy(weeks)
     data_opened = {prio: {w: 0 for w in weeks_opened} for prio in set(PRIORITIES_MAP.values())}
 
     # Load Bugzilla data from file
@@ -464,7 +465,6 @@ def write_csv(major):
         writer.writerow([])
 
         writer.writerow(['Opened bugs by week'])
-        weeks = list(sorted(data_opened['--'].keys()))
         head = ['priority'] + weeks
         writer.writerow(head)
         for prio in ['--', 'P1', 'P2', 'P3', 'P4', 'P5']:
@@ -549,6 +549,8 @@ status_flag_successor_version = 'cf_status_firefox' + str(product_version + 1)
 # nightly_start is the date for the first nightly
 # beta_start is the datetime the first beta build started (or now if no beta yet)
 nightly_start, beta_start, release_date, successor_release_date = productdates.get_product_dates(product_version)
+
+weeks = get_weeks(nightly_start, release_date)
 
 bzdata_load_path = None
 if 'bzdata_load' in args:
