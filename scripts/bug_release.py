@@ -70,7 +70,7 @@ PRIORITIES_GROUP_LIST = [
                    'P1',
                         ]
 
-STATUS_FIXED = STATUS_FIXED
+STATUS_FIXED = ['fixed', 'verified']
 
 WFMT = '{}-{:02d}'
 
@@ -106,6 +106,7 @@ def get_bugs(major):
 
     def bug_handler(bug_data, other_data):
         data_opened = other_data['data_opened']
+        data_closed = other_data['data_closed']
         phase = other_data['phase']
 
         if bzdata_save_path:
@@ -222,6 +223,7 @@ def get_bugs(major):
 
         status_flag_version_last_processed = None
 
+        last_resolved = None
         for historyItem in bug_data['history']:
             for change in historyItem['changes']:
                 if change['field_name'] == status_flag_version:
@@ -245,6 +247,8 @@ def get_bugs(major):
                         status_flag_version_at_release = status_flag_version_old
 
                     status_flag_version_last_processed = status_flag_version_new
+                    if status_flag_version_new in STATUS_FIXED:
+                        last_resolved = change_time
         if status_flag_version_last_processed is None:
             status_flag_version_last_processed = status_flag_version_current
         if pre_release_phase:
@@ -257,6 +261,12 @@ def get_bugs(major):
             fixed_in_dot_release_bugs.append(bug_data_to_export)
         if fixed_in_successor_release_priority:
             fixed_in_successor_release_priority_bugs.append(bug_data_to_export)
+
+        if last_resolved:
+            closed = utils.get_date(last_resolved)
+            year, week, _ = creation.isocalendar()
+            t = WFMT.format(year, week)
+            data_closed[prio_group_highest][t] += 1
 
 
         # Questions investigated:
@@ -299,8 +309,8 @@ def get_bugs(major):
     tracked_fixed_in_successor_release_bugs = []
     tracked_not_fixed_in_this_or_successor_release_bugs = []
 
-    weeks_opened = copy.deepcopy(weeks)
-    data_opened = {prio: {w: 0 for w in weeks_opened} for prio in set(PRIORITIES_MAP.values())}
+    data_opened = {prio: {w: 0 for w in weeks} for prio in set(PRIORITIES_MAP.values())}
+    data_closed = {prio: {w: 0 for w in weeks} for prio in set(PRIORITIES_MAP.values())}
 
     # Load Bugzilla data from file
     if bzdata_load_path:
@@ -308,6 +318,7 @@ def get_bugs(major):
             other_data = {
                           'phase' : 'nightly',
                           'data_opened' : data_opened,
+                          'data_closed' : data_closed,
                           'prio_lowered_and_increased' : prio_lowered_and_increased,
                           'prio_increased_after_release' : prio_increased_after_release,
                           'fixed_in_dot_release_bugs': fixed_in_dot_release_bugs,
@@ -320,6 +331,7 @@ def get_bugs(major):
             other_data = {
                           'phase' : 'nightly',
                           'data_opened' : data_opened,
+                          'data_closed' : data_closed,
                           'prio_lowered_and_increased' : prio_lowered_and_increased,
                           'prio_increased_after_release' : prio_increased_after_release,
                           'fixed_in_dot_release_bugs': fixed_in_dot_release_bugs,
@@ -432,6 +444,7 @@ def get_bugs(major):
 
     return (
             data_opened,
+            data_closed,
             prio_lowered_and_increased,
             prio_increased_after_release,
             fixed_in_dot_release_bugs,
@@ -448,6 +461,7 @@ def log(message):
 def write_csv(major):
     (
      data_opened,
+     data_closed,
      prio_lowered_and_increased,
      prio_increased_after_release,
      fixed_in_dot_release_bugs,
@@ -466,13 +480,50 @@ def write_csv(major):
         writer.writerow([])
         writer.writerow([])
 
-        writer.writerow(['Opened bugs by week'])
         head = ['priority'] + weeks
+
+        writer.writerow(['Opened bugs by week'])
         writer.writerow(head)
         for prio in PRIORITIES_GROUP_LIST:
-            numbers = data_opened[prio]
-            numbers = [numbers[w] for w in weeks]
+            opened_for_prio = data_opened[prio]
+            numbers = [opened_for_prio[w] for w in weeks]
             writer.writerow([prio] + numbers)
+
+        writer.writerow([])
+        writer.writerow([])
+
+        writer.writerow(['Closed bugs by week'])
+        writer.writerow(head)
+        for prio in PRIORITIES_GROUP_LIST:
+            closed_for_prio = data_closed[prio]
+            numbers = [closed_for_prio[w] for w in weeks]
+            writer.writerow([prio] + numbers)
+
+        writer.writerow([])
+        writer.writerow([])
+
+        writer.writerow(['Net opened bugs by week (- = more closed than opened)'])
+        writer.writerow(head)
+        data_net_opened = {prio: {w: data_opened[prio][w] - data_closed[prio][w] for w in weeks} for prio in set(PRIORITIES_MAP.values())}
+        for prio in PRIORITIES_GROUP_LIST:
+            open_for_prio = data_net_opened[prio]
+            numbers = [open_for_prio[w] for w in weeks]
+            writer.writerow([prio] + numbers)
+
+        writer.writerow([])
+        writer.writerow([])
+
+        writer.writerow(['Open bugs by week'])
+        writer.writerow(head)
+        data_open = {prio: {w: 0 for w in weeks} for prio in set(PRIORITIES_MAP.values())}
+        for prio in PRIORITIES_GROUP_LIST:
+            data_prio_open = [0] * len(weeks)
+            open_bugs = 0
+            data_open = []
+            for w in weeks:
+                open_bugs += data_net_opened[prio][w]
+                data_open.append(open_bugs)
+            writer.writerow([prio] + data_open)
 
         tables_to_generate = [
           { 
