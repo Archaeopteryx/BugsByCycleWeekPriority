@@ -71,6 +71,7 @@ PRIORITIES_GROUP_LIST = [
                         ]
 
 STATUS_FIXED = ['fixed', 'verified']
+STATUS_RESOLVED = ['fixed', 'wontfix', 'verified', 'disabled']
 
 WFMT = '{}-{:02d}'
 
@@ -105,8 +106,9 @@ def get_weeks(start_date, end_date):
 def get_bugs(major):
 
     def bug_handler(bug_data, other_data):
-        data_opened = other_data['data_opened']
-        data_closed = other_data['data_closed']
+#        data_opened = other_data['data_opened']
+#        data_fixed = other_data['data_fixed']
+#        data_resolved = other_data['data_resolved']
         phase = other_data['phase']
 
         if bzdata_save_path:
@@ -223,7 +225,7 @@ def get_bugs(major):
 
         status_flag_version_last_processed = None
 
-        last_resolved = None
+        last_fixed = None
         for historyItem in bug_data['history']:
             for change in historyItem['changes']:
                 if change['field_name'] == status_flag_version:
@@ -248,7 +250,7 @@ def get_bugs(major):
 
                     status_flag_version_last_processed = status_flag_version_new
                     if status_flag_version_new in STATUS_FIXED:
-                        last_resolved = change_time
+                        last_fixed = change_time
         if status_flag_version_last_processed is None:
             status_flag_version_last_processed = status_flag_version_current
         if pre_release_phase:
@@ -262,12 +264,44 @@ def get_bugs(major):
         if fixed_in_successor_release_priority:
             fixed_in_successor_release_priority_bugs.append(bug_data_to_export)
 
-        if last_resolved:
-            closed = utils.get_date(last_resolved)
-            year, week, _ = closed.isocalendar()
+        if last_fixed:
+            fixed_date = utils.get_date(last_fixed)
+            year, week, _ = fixed_date.isocalendar()
             t = WFMT.format(year, week)
-            data_closed[prio_group_highest][t] += 1
+            data_fixed[prio_group_highest][t] += 1
 
+        last_resolved = None
+        if phase == 'nightly':
+          if not bug_data['is_open'] and bug_data['cf_last_resolved']:
+              last_resolved_str = historyItem['when']
+              last_resolved = datetime.datetime.strptime(last_resolved_str, '%Y-%m-%dT%H:%M:%SZ')
+              last_resolved = pytz.utc.localize(last_resolved)
+              # Don't try to handle bug closures after the next major relase. The
+              # week might not be part of the date range anymore.
+              if last_resolved > successor_release_date:
+                  last_resolved = None
+        elif phase == 'beta':
+          for historyItem in bug_data['history']:
+              for change in historyItem['changes']:
+                  if change['field_name'] == status_flag_version:
+                      change_time_str = historyItem['when']
+                      change_time = datetime.datetime.strptime(change_time_str, '%Y-%m-%dT%H:%M:%SZ')
+                      change_time = pytz.utc.localize(change_time)
+
+                      status_flag_version_new = str(change['added'])
+
+                      # Ignore changes which were made after the subsequent major release
+                      if change_time > successor_release_date:
+                          break
+
+                      if status_flag_version_new in STATUS_RESOLVED:
+                          last_resolved = change_time
+
+        if last_resolved:
+            resolved_date = utils.get_date(last_resolved)
+            year, week, _ = resolved_date.isocalendar()
+            t = WFMT.format(year, week)
+            data_resolved[prio_group_highest][t] += 1
 
         # Questions investigated:
         # 1. Was set bug set as tracking for this version before it got
@@ -310,7 +344,8 @@ def get_bugs(major):
     tracked_not_fixed_in_this_or_successor_release_bugs = []
 
     data_opened = {prio: {w: 0 for w in weeks} for prio in set(PRIORITIES_MAP.values())}
-    data_closed = {prio: {w: 0 for w in weeks} for prio in set(PRIORITIES_MAP.values())}
+    data_fixed = {prio: {w: 0 for w in weeks} for prio in set(PRIORITIES_MAP.values())}
+    data_resolved = {prio: {w: 0 for w in weeks} for prio in set(PRIORITIES_MAP.values())}
 
     # Load Bugzilla data from file
     if bzdata_load_path:
@@ -318,7 +353,8 @@ def get_bugs(major):
             other_data = {
                           'phase' : 'nightly',
                           'data_opened' : data_opened,
-                          'data_closed' : data_closed,
+                          'data_fixed' : data_fixed,
+                          'data_resolved' : data_resolved,
                           'prio_lowered_and_increased' : prio_lowered_and_increased,
                           'prio_increased_after_release' : prio_increased_after_release,
                           'fixed_in_dot_release_bugs': fixed_in_dot_release_bugs,
@@ -331,7 +367,8 @@ def get_bugs(major):
             other_data = {
                           'phase' : 'nightly',
                           'data_opened' : data_opened,
-                          'data_closed' : data_closed,
+                          'data_fixed' : data_fixed,
+                          'data_resolved' : data_resolved,
                           'prio_lowered_and_increased' : prio_lowered_and_increased,
                           'prio_increased_after_release' : prio_increased_after_release,
                           'fixed_in_dot_release_bugs': fixed_in_dot_release_bugs,
@@ -352,6 +389,8 @@ def get_bugs(major):
                   'creation_time',
                   'priority',
                   'assigned_to',
+                  'is_open',
+                  'cf_last_resolved',
                   status_flag_version,
                   status_flag_successor_version,
                   'history'
@@ -366,7 +405,7 @@ def get_bugs(major):
             'f2': 'creation_ts',
             'o2': 'lessthan',
             'v2': '',
-            'f3': 'bug_priority',
+            'f3': 'priority',
             'o3': 'notequals',
             'v3': 'enhancement',
             'f4': 'keywords',
@@ -383,7 +422,7 @@ def get_bugs(major):
             'f2': 'creation_ts',
             'o2': 'lessthan',
             'v2': '',
-            'f3': 'bug_priority',
+            'f3': 'priority',
             'o3': 'notequals',
             'v3': 'enhancement',
             'f4': 'keywords',
@@ -410,9 +449,6 @@ def get_bugs(major):
         ]
         for phase in phases:
             query_start = phase['start_date']
-            # print('New phase')
-            # print('query_start:', query_start)
-            # print('end_date:', phase['end_date'])
             while query_start <= phase['end_date']:
                 query_end = query_start + relativedelta(days=30)
                 params = phase['query_params'].copy()
@@ -427,14 +463,12 @@ def get_bugs(major):
                                         bughandler=bug_handler,
                                         bugdata={
                                                  'phase' : phase['name'],
-                                                 'data_opened' : data_opened,
-                                                 'prio_lowered_and_increased' : prio_lowered_and_increased,
-                                                 'prio_increased_after_release' : prio_increased_after_release,
+#                                                 'data_opened' : data_opened,
+#                                                 'prio_lowered_and_increased' : prio_lowered_and_increased,
+#                                                 'prio_increased_after_release' : prio_increased_after_release,
                                                 },
                                         timeout=960))
                 query_start = query_end
-                # print('query_start:', query_start)
-                # print('end_date:', phase['end_date'])
 
         for q in queries:
             q.get_data().wait()
@@ -444,7 +478,8 @@ def get_bugs(major):
 
     return (
             data_opened,
-            data_closed,
+            data_fixed,
+            data_resolved,
             prio_lowered_and_increased,
             prio_increased_after_release,
             fixed_in_dot_release_bugs,
@@ -461,7 +496,8 @@ def log(message):
 def write_csv(major):
     (
      data_opened,
-     data_closed,
+     data_fixed,
+     data_resolved,
      prio_lowered_and_increased,
      prio_increased_after_release,
      fixed_in_dot_release_bugs,
@@ -492,19 +528,29 @@ def write_csv(major):
         writer.writerow([])
         writer.writerow([])
 
-        writer.writerow(['Closed bugs by week'])
+        writer.writerow(['Fixed bugs by week'])
         writer.writerow(head)
         for prio in PRIORITIES_GROUP_LIST:
-            closed_for_prio = data_closed[prio]
-            numbers = [closed_for_prio[w] for w in weeks]
+            fixed_for_prio = data_fixed[prio]
+            numbers = [fixed_for_prio[w] for w in weeks]
             writer.writerow([prio] + numbers)
 
         writer.writerow([])
         writer.writerow([])
 
-        writer.writerow(['Net opened bugs by week (- = more closed than opened)'])
+        writer.writerow(['Closed bugs by week (fixed, duplicates, invalid, worksforme etc.'])
         writer.writerow(head)
-        data_net_opened = {prio: {w: data_opened[prio][w] - data_closed[prio][w] for w in weeks} for prio in set(PRIORITIES_MAP.values())}
+        for prio in PRIORITIES_GROUP_LIST:
+            resolved_for_prio = data_resolved[prio]
+            numbers = [resolved_for_prio[w] for w in weeks]
+            writer.writerow([prio] + numbers)
+
+        writer.writerow([])
+        writer.writerow([])
+
+        writer.writerow(['Net opened bugs by week (- = more fixed than opened)'])
+        writer.writerow(head)
+        data_net_opened = {prio: {w: data_opened[prio][w] - data_resolved[prio][w] for w in weeks} for prio in set(PRIORITIES_MAP.values())}
         for prio in PRIORITIES_GROUP_LIST:
             open_for_prio = data_net_opened[prio]
             numbers = [open_for_prio[w] for w in weeks]
