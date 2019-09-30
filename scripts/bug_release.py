@@ -186,6 +186,15 @@ def get_bugs(major):
         prio_group_at_release = PRIORITIES_GROUP_LIST.index(PRIORITIES_MAP[prio_at_release])
         prio_group_after_release = PRIORITIES_GROUP_LIST.index(PRIORITIES_MAP[prio_after_release])
 
+        sec_bug = any('security' in group for group in bug_data['groups'])
+        bug_summary = ''
+        if sec_bug:
+            bug_summary = '(Secure bug in %(product)s :: %(component)s)' % \
+                {'product': bug_data['product'],
+                 'component': bug_data['component']}
+        else:
+            bug_summary = bug_data['summary']
+
         bug_data_to_export = [
                               bug_data['id'],
                               bug_data[status_flag_version],
@@ -196,7 +205,7 @@ def get_bugs(major):
                               bug_data['product'],
                               bug_data['component'],
                               bug_data['assigned_to_detail']['email'],
-                              bug_data['summary'],
+                              bug_summary,
                             ]
         if prio_group_before_release > prio_group_at_release and prio_group_after_release > prio_group_at_release and prio_group_after_release == 5:
             prio_lowered_and_increased.append(bug_data_to_export)
@@ -393,7 +402,8 @@ def get_bugs(major):
                   'cf_last_resolved',
                   status_flag_version,
                   status_flag_successor_version,
-                  'history'
+                  'history',
+                  'groups',
                  ]
 
         nightly_params = {
@@ -532,7 +542,7 @@ def write_csv(major):
         writer.writerow([])
         writer.writerow([])
 
-        writer.writerow(['Closed bugs by week (fixed, duplicates, invalid, worksforme etc.'])
+        writer.writerow(['Closed bugs by week (fixed, duplicates, invalid, worksforme etc.)'])
         writer.writerow(head)
         for prio in PRIORITIES_GROUP_LIST:
             resolved_for_prio = data_resolved[prio]
@@ -542,7 +552,7 @@ def write_csv(major):
         writer.writerow([])
         writer.writerow([])
 
-        writer.writerow(['Net opened bugs by week (- = more fixed than opened)'])
+        writer.writerow(['Net opened bugs by week (- = more closed than opened)'])
         writer.writerow(head)
         data_net_opened = {prio: {w: data_opened[prio][w] - data_resolved[prio][w] for w in weeks} for prio in set(PRIORITIES_MAP.values())}
         for prio in PRIORITIES_GROUP_LIST:
