@@ -603,7 +603,7 @@ status_flag_successor_version = 'cf_status_firefox' + str(product_version + 1)
 # beta_start is the datetime the first beta build started (or now if no beta yet)
 nightly_start, beta_start, release_date, successor_release_date = productdates.get_product_dates(product_version)
 
-weeks = get_weeks(nightly_start, release_date)
+weeks = get_weeks(nightly_start, successor_release_date)
 
 bzdata_load_path = None
 if 'bzdata_load' in args:
