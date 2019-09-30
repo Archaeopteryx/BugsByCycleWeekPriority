@@ -282,7 +282,7 @@ def get_bugs(major):
         last_resolved = None
         if phase == 'nightly':
           if not bug_data['is_open'] and bug_data['cf_last_resolved']:
-              last_resolved_str = historyItem['when']
+              last_resolved_str = bug_data['cf_last_resolved']
               last_resolved = datetime.datetime.strptime(last_resolved_str, '%Y-%m-%dT%H:%M:%SZ')
               last_resolved = pytz.utc.localize(last_resolved)
               # Don't try to handle bug closures after the next major relase. The
