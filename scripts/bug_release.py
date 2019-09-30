@@ -264,7 +264,7 @@ def get_bugs(major):
 
         if last_resolved:
             closed = utils.get_date(last_resolved)
-            year, week, _ = creation.isocalendar()
+            year, week, _ = closed.isocalendar()
             t = WFMT.format(year, week)
             data_closed[prio_group_highest][t] += 1
 
