@@ -405,12 +405,9 @@ def get_bugs(major):
             'f2': 'creation_ts',
             'o2': 'lessthan',
             'v2': '',
-            'f3': 'priority',
-            'o3': 'notequals',
-            'v3': 'enhancement',
-            'f4': 'keywords',
-            'o4': 'notsubstring',
-            'v4': 'meta',
+            'f3': 'keywords',
+            'o3': 'notsubstring',
+            'v3': 'meta',
         }
 
         beta_params = {
@@ -422,15 +419,12 @@ def get_bugs(major):
             'f2': 'creation_ts',
             'o2': 'lessthan',
             'v2': '',
-            'f3': 'priority',
-            'o3': 'notequals',
-            'v3': 'enhancement',
-            'f4': 'keywords',
-            'o4': 'notsubstring',
-            'v4': 'meta',
-            'f5': status_flag_version,
-            'o5': 'anyexact',
-            'v5': 'affected, fix-optional, fixed, wontfix, verified, disabled',
+            'f3': 'keywords',
+            'o3': 'notsubstring',
+            'v3': 'meta',
+            'f4': status_flag_version,
+            'o4': 'anyexact',
+            'v4': 'affected, fix-optional, fixed, wontfix, verified, disabled',
         }
 
         phases = [
