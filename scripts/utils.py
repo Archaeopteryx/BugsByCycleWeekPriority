@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import dateutil.parser
 import pytz
@@ -58,6 +58,23 @@ def get_date(dt):
         return pytz.utc.localize(datetime.utcnow() - relativedelta(days=1))
 
     return as_utc(dateutil.parser.parse(dt))
+
+
+def get_week_bounds(date):
+    """Get datetimes for week start and end from a date
+
+    Args:
+        date (datetime): a date
+
+    Returns:
+        (datetime, datetime): week start datetime object, week end datetime object
+    """
+    assert date
+
+    helper_date = date - timedelta(days = date.weekday())
+    week_start = datetime(helper_date.year, helper_date.month, helper_date.day)
+    week_end = week_start + timedelta(7)
+    return as_utc(week_start), as_utc(week_end)
 
 
 def as_utc(d):

@@ -32,7 +32,7 @@ def make_buildhub_request(params, sleep, retry, callback):
             time.sleep(sleep)
         else:
             try:
-                return callback(r.json())
+                return callback(r.json()), True
             except BaseException as e:
                 logger.error(
                     'Buildhub query failed with parameters: {}.'.format(params)
@@ -59,7 +59,7 @@ def make_productdetails_request(product_and_version, sleep, retry, callback):
             except KeyError as e:
                 # ['releases'][product_and_version]['date'] was not found.
                 # Should be due to the version not being released yet.
-                return utils.get_date('today')
+                return utils.get_date('today'), False
             except BaseException as e:
                 logger.error(
                     'productdetails query failed'
@@ -72,7 +72,7 @@ def make_productdetails_request(product_and_version, sleep, retry, callback):
             release_time = datetime.time(13)
             release_datetime = datetime.datetime.combine(release_date, release_time)
             release_datetime = pytz.utc.localize(release_datetime)
-            return release_datetime
+            return release_datetime, True
 
     logger.error('Too many attempts in make_productdetails_request(retry={})'.format(retry))
 
@@ -115,15 +115,15 @@ def get_buildhub_query(major, channels):
 def get_product_dates(major):
     """Get the date of the first nightly and the first date of release"""
     data = get_buildhub_query(major, ['nightly'])
-    nightly_start = make_buildhub_request(data, 1, 100, get_date)
+    nightly_start, nightly_started = make_buildhub_request(data, 1, 100, get_date)
     print('Nightly start: {}'.format(nightly_start))
     data = get_buildhub_query(major, ['beta'])
-    beta_start = make_buildhub_request(data, 1, 100, get_date)
+    beta_start, beta_started = make_buildhub_request(data, 1, 100, get_date)
     print('Beta start: {}'.format(beta_start))
-    release_date = make_productdetails_request('firefox-{}.0'.format(major), 1, 100, get_date)
+    release_date, release_started = make_productdetails_request('firefox-{}.0'.format(major), 1, 100, get_date)
     print('Release date: {}'.format(release_date))
-    successor_release_date = make_productdetails_request('firefox-{}.0'.format(major + 1), 1, 100, get_date)
+    successor_release_date, successor_started = make_productdetails_request('firefox-{}.0'.format(major + 1), 1, 100, get_date)
     print('Successor release date: {}'.format(successor_release_date))
     
-    return nightly_start, beta_start, release_date, successor_release_date
+    return nightly_start, beta_start, release_date, successor_release_date, nightly_started, beta_started, release_started, successor_started
 

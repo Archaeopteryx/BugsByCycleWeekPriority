@@ -96,11 +96,39 @@ def add_bugzilla_data_to_save(node_path, data):
 
 def get_weeks(start_date, end_date):
     res = []
+    weeks_attrs = {}
+    phase_old = ''
+    phase_week = 1
     while start_date.strftime('%Y-%W') <= end_date.strftime('%Y-%W'):
         y, w, _ = start_date.isocalendar()
-        res.append(WFMT.format(y, w))
+        week_start, week_end = utils.get_week_bounds(start_date)
+        phase_new = ''
+        if successor_release_date < week_end and successor_started:
+            phase_new = 'successor released'
+        elif release_date < week_end and release_started:
+            phase_new = 'release'
+        elif beta_start < week_end and beta_started:
+            phase_new = 'beta'
+        elif nightly_start < week_end and nightly_started:
+            phase_new = 'nightly'
+        else:
+            # Should never get here.
+            phase_new = 'before nightly start'
+        if phase_new != phase_old:
+            phase_week = 1
+        else:
+            phase_week += 1
+        week_label = WFMT.format(y, w)
+        res.append(week_label)
+        weeks_attrs[week_label] = {
+                                  'week_start' : week_start,
+                                  'week_end' : week_end,
+                                  'phase' : phase_new,
+                                  'phase_week' : phase_week,
+                                 }
         start_date += relativedelta(days=7)
-    return res
+        phase_old = phase_new
+    return res, weeks_attrs
 
 
 def get_bugs(major):
@@ -513,9 +541,6 @@ def get_bugs(major):
         for q in queries:
             q.get_data().wait()
 
-    y, w, _ = beta_start.isocalendar()
-    data_opened['first_beta'] = WFMT.format(y, w)
-
     return (
             data_opened,
             data_fixed,
@@ -549,17 +574,27 @@ def write_csv(major):
     with open('data/bugs_count_{}.csv'.format(major), 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
-        y, w, _ = beta_start.isocalendar()
-        first_beta_str = WFMT.format(y, w)
-        writer.writerow(['First beta', first_beta_str])
+        # head = ['priority'] + weeks
 
-        writer.writerow([])
-        writer.writerow([])
-
-        head = ['priority'] + weeks
+        date_row = ['Monday date']
+        phase_row = ['Phase']
+        phase_week_row = ['Phase week']
+        cycle_week_row = ['Cycle week']
+        for w in weeks:
+            date_row.append(weeks_attrs[w]['week_start'].strftime('%Y-%m-%d'))
+            phase_row.append(weeks_attrs[w]['phase'])
+            phase_week_row.append(weeks_attrs[w]['phase_week'])
+            cycle_week_row.append('{phase} week {week}'.format(
+                phase = weeks_attrs[w]['phase'],
+                week = weeks_attrs[w]['phase_week'],
+            ))
 
         writer.writerow(['Opened bugs by week'])
-        writer.writerow(head)
+        # writer.writerow(head)
+        writer.writerow(phase_row)
+        writer.writerow(phase_week_row)
+        writer.writerow(date_row)
+        writer.writerow(cycle_week_row)
         for prio in PRIORITIES_GROUP_LIST:
             opened_for_prio = data_opened[prio]
             numbers = [opened_for_prio[w] for w in weeks]
@@ -569,7 +604,11 @@ def write_csv(major):
         writer.writerow([])
 
         writer.writerow(['Fixed bugs by week'])
-        writer.writerow(head)
+        # writer.writerow(head)
+        writer.writerow(phase_row)
+        writer.writerow(phase_week_row)
+        writer.writerow(date_row)
+        writer.writerow(cycle_week_row)
         for prio in PRIORITIES_GROUP_LIST:
             fixed_for_prio = data_fixed[prio]
             numbers = [fixed_for_prio[w] for w in weeks]
@@ -579,7 +618,11 @@ def write_csv(major):
         writer.writerow([])
 
         writer.writerow(['Closed bugs by week (fixed, duplicates, invalid, worksforme etc.)'])
-        writer.writerow(head)
+        # writer.writerow(head)
+        writer.writerow(phase_row)
+        writer.writerow(phase_week_row)
+        writer.writerow(date_row)
+        writer.writerow(cycle_week_row)
         for prio in PRIORITIES_GROUP_LIST:
             resolved_for_prio = data_resolved[prio]
             numbers = [resolved_for_prio[w] for w in weeks]
@@ -589,7 +632,11 @@ def write_csv(major):
         writer.writerow([])
 
         writer.writerow(['Net opened bugs by week (- = more closed than opened)'])
-        writer.writerow(head)
+        # writer.writerow(head)
+        writer.writerow(phase_row)
+        writer.writerow(phase_week_row)
+        writer.writerow(date_row)
+        writer.writerow(cycle_week_row)
         data_net_opened = {prio: {w: data_opened[prio][w] - data_resolved[prio][w] for w in weeks} for prio in set(PRIORITIES_MAP.values())}
         for prio in PRIORITIES_GROUP_LIST:
             open_for_prio = data_net_opened[prio]
@@ -600,7 +647,11 @@ def write_csv(major):
         writer.writerow([])
 
         writer.writerow(['Open bugs by week'])
-        writer.writerow(head)
+        # writer.writerow(head)
+        writer.writerow(phase_row)
+        writer.writerow(phase_week_row)
+        writer.writerow(date_row)
+        writer.writerow(cycle_week_row)
         data_open = {prio: {w: 0 for w in weeks} for prio in set(PRIORITIES_MAP.values())}
         for prio in PRIORITIES_GROUP_LIST:
             data_prio_open = [0] * len(weeks)
@@ -687,9 +738,10 @@ status_flag_successor_version = 'cf_status_firefox' + str(product_version + 1)
 
 # nightly_start is the date for the first nightly
 # beta_start is the datetime the first beta build started (or now if no beta yet)
-nightly_start, beta_start, release_date, successor_release_date = productdates.get_product_dates(product_version)
+nightly_start, beta_start, release_date, successor_release_date, \
+    nightly_started, beta_started, release_started, successor_started = productdates.get_product_dates(product_version)
 
-weeks = get_weeks(nightly_start, successor_release_date)
+weeks, weeks_attrs = get_weeks(nightly_start, successor_release_date)
 
 bzdata_load_path = None
 if 'bzdata_load' in args:
