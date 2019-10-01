@@ -418,6 +418,24 @@ def get_bugs(major):
             'f3': 'keywords',
             'o3': 'notsubstring',
             'v3': 'meta',
+            # Ignore bugs created by the bot which creates one bug per
+            # web-platform-test to sync.
+            'f4': 'reporter',
+            'o4': 'notequals',
+            'v4': 'wptsync@mozilla.bugs',
+            # Exclude intermittent failures which have priority P5 (= not
+            # crashes). Imports of tests or issues affecting tests randomly
+            # can increase the count of new intermittent bugs.
+            'f5': 'OP',
+            'n5': '1',
+            'f6': 'keywords',
+            'o6': 'allwords',
+            'v6': 'intermittent-failure',
+            'f7': 'priority',
+            'o7': 'equals',
+            'v7': 'P5',
+            'f8': 'CP',
+            # End of exclusion of intermittent failures.
         }
 
         beta_params = {
@@ -432,9 +450,27 @@ def get_bugs(major):
             'f3': 'keywords',
             'o3': 'notsubstring',
             'v3': 'meta',
-            'f4': status_flag_version,
-            'o4': 'anyexact',
-            'v4': 'affected, fix-optional, fixed, wontfix, verified, disabled',
+            # Ignore bugs created by the bot which creates one bug per
+            # web-platform-test to sync.
+            'f4': 'reporter',
+            'o4': 'notequals',
+            'v4': 'wptsync@mozilla.bugs',
+            # Exclude intermittent failures which have priority P5 (= not
+            # crashes). Imports of tests or issues affecting tests randomly
+            # can increase the count of new intermittent bugs.
+            'f5': 'OP',
+            'n5': '1',
+            'f6': 'keywords',
+            'o6': 'allwords',
+            'v6': 'intermittent-failure',
+            'f7': 'priority',
+            'o7': 'equals',
+            'v7': 'P5',
+            'f8': 'CP',
+            # End of exclusion of intermittent failures.
+            'f9': status_flag_version,
+            'o9': 'anyexact',
+            'v9': 'affected, fix-optional, fixed, wontfix, verified, disabled',
         }
 
         phases = [
