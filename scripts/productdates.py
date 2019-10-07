@@ -32,7 +32,7 @@ def make_buildhub_request(params, sleep, retry, callback):
             time.sleep(sleep)
         else:
             try:
-                return callback(r.json()), True
+                return callback(r.json())
             except BaseException as e:
                 logger.error(
                     'Buildhub query failed with parameters: {}.'.format(params)
@@ -83,8 +83,8 @@ def get_date(data):
     buckets = data['aggregations']['buildids']['buckets']
     if len(buckets) >= 1:
         buildid = buckets[0]['key']
-        return utils.get_build_date(buildid)
-    return utils.get_date('today')
+        return utils.get_build_date(buildid), True
+    return utils.get_date('today'), False
 
 
 def get_buildhub_query(major, channels):

@@ -223,10 +223,11 @@ def get_bugs(major):
         else:
             bug_summary = bug_data['summary']
 
+        successor_status = bug_data[status_flag_successor_version] if successor_started else '--'
         bug_data_to_export = [
                               bug_data['id'],
                               bug_data[status_flag_version],
-                              bug_data[status_flag_successor_version],
+                              successor_status,
                               prio_before_release,
                               prio_at_release,
                               prio_after_release,
@@ -235,6 +236,7 @@ def get_bugs(major):
                               bug_data['assigned_to_detail']['email'],
                               bug_summary,
                             ]
+        
         if prio_group_before_release > prio_group_at_release and prio_group_after_release > prio_group_at_release and prio_group_after_release == 5:
             prio_lowered_and_increased.append(bug_data_to_export)
         if prio_group_after_release > prio_group_at_release and prio_group_after_release == 5:
@@ -295,7 +297,7 @@ def get_bugs(major):
                 status_flag_version_at_release = status_flag_version_last_processed
         fixed_before_release = status_flag_version_at_release in STATUS_FIXED
         fixed_in_dot_release = not fixed_before_release and status_flag_version_last_processed in STATUS_FIXED
-        fixed_in_successor_release_priority = not fixed_before_release and not fixed_in_dot_release and bug_data[status_flag_successor_version] in STATUS_FIXED and 'P1' in [prio_before_release, prio_after_release]
+        fixed_in_successor_release_priority = successor_started and not fixed_before_release and not fixed_in_dot_release and bug_data[status_flag_successor_version] in STATUS_FIXED and 'P1' in [prio_before_release, prio_after_release]
         if fixed_in_dot_release:
             fixed_in_dot_release_bugs.append(bug_data_to_export)
         if fixed_in_successor_release_priority:
@@ -364,9 +366,9 @@ def get_bugs(major):
                         break
         if tracking_for_version and not fixed_before_release and fixed_in_dot_release:
             tracked_fixed_in_dot_release_bugs.append(bug_data_to_export)
-        if tracking_for_version and not fixed_before_release and not fixed_in_dot_release and bug_data[status_flag_successor_version] in STATUS_FIXED:
+        if successor_started and tracking_for_version and not fixed_before_release and not fixed_in_dot_release and bug_data[status_flag_successor_version] in STATUS_FIXED:
             tracked_fixed_in_successor_release_bugs.append(bug_data_to_export)
-        if tracking_for_version and not fixed_before_release and not fixed_in_dot_release and not bug_data[status_flag_successor_version] in STATUS_FIXED:
+        if successor_started and tracking_for_version and not fixed_before_release and not fixed_in_dot_release and not bug_data[status_flag_successor_version] in STATUS_FIXED:
             tracked_not_fixed_in_this_or_successor_release_bugs.append(bug_data_to_export)
 
 
@@ -400,21 +402,23 @@ def get_bugs(major):
                           'tracked_fixed_in_successor_release_bugs': tracked_fixed_in_successor_release_bugs,
                          }
             bug_handler(bug_data, other_data)
-        for bug_data in bugzilla_data_loaded['opened']['beta']['data']:
-            other_data = {
-                          'phase' : 'nightly',
-                          'data_opened' : data_opened,
-                          'data_fixed' : data_fixed,
-                          'data_resolved' : data_resolved,
-                          'prio_lowered_and_increased' : prio_lowered_and_increased,
-                          'prio_increased_after_release' : prio_increased_after_release,
-                          'fixed_in_dot_release_bugs': fixed_in_dot_release_bugs,
-                          'fixed_in_successor_release_priority_bugs': fixed_in_successor_release_priority_bugs,
-                          'tracked_fixed_in_dot_release_bugs': tracked_fixed_in_dot_release_bugs,
-                          'tracked_fixed_in_successor_release_bugs': tracked_fixed_in_successor_release_bugs,
-                          'tracked_not_fixed_in_this_or_successor_release_bugs': tracked_not_fixed_in_this_or_successor_release_bugs,
-                         }
-            bug_handler(bug_data, other_data)
+        # No beta data if version is still on Nightly.
+        if 'opened' in bugzilla_data_loaded['opened']:
+          for bug_data in bugzilla_data_loaded['opened']['beta']['data']:
+              other_data = {
+                            'phase' : 'nightly',
+                            'data_opened' : data_opened,
+                            'data_fixed' : data_fixed,
+                            'data_resolved' : data_resolved,
+                            'prio_lowered_and_increased' : prio_lowered_and_increased,
+                            'prio_increased_after_release' : prio_increased_after_release,
+                            'fixed_in_dot_release_bugs': fixed_in_dot_release_bugs,
+                            'fixed_in_successor_release_priority_bugs': fixed_in_successor_release_priority_bugs,
+                            'tracked_fixed_in_dot_release_bugs': tracked_fixed_in_dot_release_bugs,
+                            'tracked_fixed_in_successor_release_bugs': tracked_fixed_in_successor_release_bugs,
+                            'tracked_not_fixed_in_this_or_successor_release_bugs': tracked_not_fixed_in_this_or_successor_release_bugs,
+                           }
+              bug_handler(bug_data, other_data)
     # Load Bugzilla data from Bugzilla server
     else:
         queries = []
