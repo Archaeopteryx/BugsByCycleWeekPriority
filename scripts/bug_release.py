@@ -142,6 +142,14 @@ def get_bugs(major):
         if bzdata_save_path:
             add_bugzilla_data_to_save(['opened', phase], bug_data)
 
+        # If a status flag for a Gecko/Firefox version has been disabled in
+        # Bugzilla, bug_data only contains it if its value is not the default
+        # "---".
+        if status_flag_version not in bug_data:
+            bug_data[status_flag_version] = "---"
+        if status_flag_successor_version not in bug_data:
+            bug_data[status_flag_successor_version] = "---"
+
         pre_release_phase = True
 
         # Questions investigated:
