@@ -127,3 +127,35 @@ def get_product_dates(major):
     
     return nightly_start, beta_start, release_date, successor_release_date, nightly_started, beta_started, release_started, successor_started
 
+def get_latest_released_versions_by_min_version(version_min):
+    """Get the release date for the given and subsequent releases"""
+    return get_versions_by_min_version(version_min, ['major'], 1, 100, get_date)
+
+def get_versions_by_min_version(version_min, categories, sleep, retry, callback):
+    """
+    Query productdetails to get publishing date for given release types and with
+    version number matching given one or greater
+    """
+
+    for _ in range(retry):
+        r = requests.get(PRODUCT_DETAILS_URL)
+        if 'Backoff' in r.headers:
+            time.sleep(sleep)
+        else:
+            release_data = (r.json())['releases']
+            releases = []
+            for release in release_data:
+                # Older ESR versions use the category 'stability', newer ones 'esr'.
+                if release.endswith('esr') and 'esr' not in categories:
+                    continue
+                elif release_data[release]['category'] not in categories:
+                    continue
+                if int((release_data[release]['version'].split("."))[0]) >= version_min:
+                    releases.append({
+                        'version': release_data[release]['version'],
+                        'date': datetime.datetime.strptime(release_data[release]['date'], '%Y-%m-%d').date(),
+                    })
+            releases.sort(key = lambda release: release['date'])
+            return releases
+    return None
+
