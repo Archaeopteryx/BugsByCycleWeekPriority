@@ -92,9 +92,53 @@ def get_bugs(version, start_date, end_date):
         'v5': 'P5',
         'f6': 'CP',
         # End of exclusion of intermittent failures.
-        'f7': 'OP',
-        'j7': 'OR',
-        'f8': 'OP',
+        'f13': 'OP',
+        'f14': 'cf_status_firefox' + str(version),
+        'o14': 'anywords',
+        'v14': ['affected', 'wontfix', 'fix-optional'],
+        'f15': 'cf_status_firefox' + str(version - 1),
+        'o15': 'nowords',
+        'v15': ['affected', 'wontfix', 'fix-optional'],
+        'f16': 'CP',
+    }
+
+    bugs_data = []
+
+    Bugzilla(params,
+             bughandler=bug_handler,
+             timeout=960).get_data().wait()
+    severity_buckets = {
+      'S1_affected_set': [bug_data['id'] for bug_data in bugs_data if bug_data['severity'] == 'S1'],
+      'S2_affected_set': [bug_data['id'] for bug_data in bugs_data if bug_data['severity'] == 'S2'],
+    }
+
+    params = {
+        'include_fields': fields,
+        'bug_type': 'defect',
+        'product': PRODUCTS_TO_CHECK,
+        'severity': ['S1', 'S2'],
+        'status': STATUS_OPEN,
+        'f1': 'keywords',
+        'o1': 'notsubstring',
+        'v1': 'meta',
+        # Ignore bugs created by the bot which creates one bug per
+        # web-platform-test to sync.
+        'f2': 'reporter',
+        'o2': 'notequals',
+        'v2': 'wptsync@mozilla.bugs',
+        # Exclude intermittent failures which have priority P5 (= not
+        # crashes). Imports of tests or issues affecting tests randomly
+        # can increase the count of new intermittent bugs.
+        'f3': 'OP',
+        'n3': '1',
+        'f4': 'keywords',
+        'o4': 'allwords',
+        'v4': 'intermittent-failure',
+        'f5': 'priority',
+        'o5': 'equals',
+        'v5': 'P5',
+        'f6': 'CP',
+        # End of exclusion of intermittent failures.
         'f9': 'creation_ts',
         'o9': 'greaterthan',
         'v9': '',
@@ -103,17 +147,16 @@ def get_bugs(version, start_date, end_date):
         'v10': '',
         'f11': 'cf_status_firefox' + str(version),
         'o11': 'nowords',
-        'v11': ['unaffected'],
-        'f12': 'CP',
+        'v11': STATUS_UNAFFECTED,
         'f13': 'OP',
-        'f14': 'cf_status_firefox' + str(version),
-        'o14': 'anywords',
-        'v14': ['affected, wontfix', 'fix-optional'],
-        'f15': 'cf_status_firefox' + str(version - 1),
-        'o15': 'nowords',
-        'v15': ['affected, wontfix', 'fix-optional'],
-        'f16': 'CP',
-        'f17': 'CP',
+        'n13': '1',
+        'f15': 'cf_status_firefox' + str(version),
+        'o15': 'anywords',
+        'v15': ['affected', 'wontfix', 'fix-optional'],
+        'f16': 'cf_status_firefox' + str(version - 1),
+        'o16': 'nowords',
+        'v16': ['affected', 'wontfix', 'fix-optional'],
+        'f18': 'CP',
     }
 
     params['v9'] = start_date
@@ -124,10 +167,10 @@ def get_bugs(version, start_date, end_date):
     Bugzilla(params,
              bughandler=bug_handler,
              timeout=960).get_data().wait()
-    return {
-      'S1': [bug_data['id'] for bug_data in bugs_data if bug_data['severity'] == 'S1'],
-      'S2': [bug_data['id'] for bug_data in bugs_data if bug_data['severity'] == 'S2'],
-    }
+    severity_buckets['S1_affected_unknown'] = [bug_data['id'] for bug_data in bugs_data if bug_data['severity'] == 'S1']
+    severity_buckets['S2_affected_unknown'] = [bug_data['id'] for bug_data in bugs_data if bug_data['severity'] == 'S2']
+
+    return severity_buckets
 
 def log(message):
     print(message)
@@ -154,10 +197,14 @@ def write_csv(defect_data_by_version):
 
         writer.writerow([
             'First affected version',
-            'Open severity S1 bugs (count)',
-            'Open severity S2 bugs (count)',
-            'Open severity S1 bugs (bug numbers)',
-            'Open severity S2 bugs (bug numbers)',
+            'Open severity S1 bugs w/ affected set (count)',
+            'Open severity S2 bugs w/ affected set (count)',
+            'Open severity S1 bugs w/o affected set (count)',
+            'Open severity S2 bugs w/o affected set (count)',
+            'Open severity S1 bugs w/ affected set (bug numbers)',
+            'Open severity S2 bugs w/ affected set (bug numbers)',
+            'Open severity S1 bugs w/o affected set (bug numbers)',
+            'Open severity S2 bugs w/o affected set (bug numbers)',
         ])
 
         for pos in range(len(defect_data_by_version) - 1, -1, -1):
@@ -165,10 +212,14 @@ def write_csv(defect_data_by_version):
             defect_data = data_for_version['defect_data']
             writer.writerow([
                 data_for_version['version'],
-                len(defect_data['S1']),
-                len(defect_data['S2']),
-                ','.join(sorted([str(bug_id) for bug_id in defect_data['S1']])),
-                ','.join(sorted([str(bug_id) for bug_id in defect_data['S2']])),
+                len(defect_data['S1_affected_set']),
+                len(defect_data['S2_affected_set']),
+                len(defect_data['S1_affected_unknown']),
+                len(defect_data['S2_affected_unknown']),
+                ','.join(sorted([str(bug_id) for bug_id in defect_data['S1_affected_set']])),
+                ','.join(sorted([str(bug_id) for bug_id in defect_data['S2_affected_set']])),
+                ','.join(sorted([str(bug_id) for bug_id in defect_data['S1_affected_unknown']])),
+                ','.join(sorted([str(bug_id) for bug_id in defect_data['S2_affected_unknown']])),
             ])
 
 
