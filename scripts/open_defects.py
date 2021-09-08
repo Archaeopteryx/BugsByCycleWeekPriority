@@ -36,11 +36,11 @@ def get_bugs(version, start_date, end_date):
         for key, value in bug_data.items():
             if key.startswith('cf_status_firefox') and not key.startswith('cf_status_firefox_esr'):
                 release_status.append({ key: value })
-        release_status.sort()
+        release_status.sort(key = lambda item: list(item.keys())[0])
 
         version_first_affected = None
         for release_state in release_status:
-            release_state_key, release_state_value = (release_state.items())[0]
+            release_state_key, release_state_value = list(release_state.items())[0]
             if release_state_value in STATUS_UNAFFECTED or release_state_value in STATUS_UNKNOWN:
                 continue
             else:
