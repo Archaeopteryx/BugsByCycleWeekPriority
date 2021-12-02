@@ -131,6 +131,17 @@ def get_latest_released_versions_by_min_version(version_min):
     """Get the release date for the given and subsequent releases"""
     return get_versions_by_min_version(version_min, ['major'], 1, 100, get_date)
 
+def get_latest_nightly_versions_by_min_version(version_min):
+    """Get the start dates for the development cycle of the given and subsequent Nightly versions"""
+    releases = get_versions_by_min_version(version_min - 2, ['major'], 1, 100, get_date)
+    nightly_starts = []
+    for release in releases:
+        nightly_starts.append({
+            'version': int(release['version'].split('.')[0]) + 2,
+            'date': release['date'] - datetime.timedelta(1),
+        })
+    return nightly_starts
+
 def get_versions_by_min_version(version_min, categories, sleep, retry, callback):
     """
     Query productdetails to get publishing date for given release types and with
