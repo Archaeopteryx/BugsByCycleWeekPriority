@@ -167,7 +167,7 @@ def get_lowered(label, start_date, end_date):
                         break
                     severity_old = change['removed']
                     severity_new = change['added']
-                    if severity_old not in SEVERITIES and severity_new in SEVERITIES:
+                    if severity_old in SEVERITIES and severity_new not in SEVERITIES:
                         bugs_data.append({
                           'id': bug_data['id'],
                         })
