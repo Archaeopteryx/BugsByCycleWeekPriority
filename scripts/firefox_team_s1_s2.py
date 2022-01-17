@@ -48,8 +48,8 @@ def get_component_to_team():
                 continue
 
             product_name = products_data[pos]['name']
-            if product_name not in PRODUCTS_TO_CHECK:
-                continue
+#            if product_name not in PRODUCTS_TO_CHECK:
+#                continue
 
             ID_TO_PRODUCT[products_data[pos]['id']] = product_name
 
@@ -66,41 +66,60 @@ def get_component_to_team():
             COMPONENT_TO_TEAM[f"{product_name} :: {component_data['name']}"] = component_data['team_name']
     return COMPONENT_TO_TEAM
 
+def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
+    bug_states = {}
+    for field in fields:
+        bug_states[field] = {
+            "old": None,
+            "new": None,
+        }
+    for historyItem in bug_data['history']:
+        for change in historyItem['changes']:
+            field = change['field_name']
+            if field in fields:
+                change_time_str = historyItem['when']
+                change_time = datetime.datetime.strptime(change_time_str, '%Y-%m-%dT%H:%M:%SZ')
+                change_time = pytz.utc.localize(change_time).date()
+                if change_time < start_date:
+                    bug_states[field]["old"] = change['added']
+                elif start_date <= change_time < end_date:
+                    if bug_states[field]["old"] is None:
+                        bug_states[field]["old"] = change['removed']
+                    bug_states[field]["new"] = change['added']
+                if change_time > end_date:
+                    if bug_states[field]["old"] is None:
+                        bug_states[field]["old"] = change['removed']
+                    if bug_states[field]["new"] is None:
+                        bug_states[field]["new"] = change['removed']
+    for field in fields:
+        if bug_states[field]["old"] is None:
+            bug_states[field]["old"] = bug_data[field]
+        if bug_states[field]["new"] is None:
+            bug_states[field]["new"] = bug_data[field]
+    return bug_states
+
 def get_added(label, start_date, end_date):
 
     def bug_handler(bug_data):
-        historyProcessed = False
-        for historyItem in bug_data['history']:
-            for change in historyItem['changes']:
-                if change['field_name'] == 'severity':
-                    change_time_str = historyItem['when']
-                    change_time = datetime.datetime.strptime(change_time_str, '%Y-%m-%dT%H:%M:%SZ')
-                    change_time = pytz.utc.localize(change_time).date()
-                    if change_time < start_date:
-                        continue
-                    if change_time > end_date:
-                        historyProcessed = True
-                        break
-                    severity_old = change['removed']
-                    severity_new = change['added']
-                    if severity_old not in SEVERITIES and severity_new in SEVERITIES:
-                        bugs_data.append({
-                          'id': bug_data['id'],
-                        })
-                        bugs_table.append([
-                            bug_data['id'],
-                            COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
-                            label,
-                            'added',
-                        ])
-                        historyProcessed = True
-            if historyProcessed:
-                break
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "severity"], start_date, end_date)
+        if not (bug_states["severity"]["old"] not in SEVERITIES and bug_states["severity"]["new"] in SEVERITIES):
+            return
+        if bug_states["product"]["old"] in PRODUCTS_TO_CHECK and bug_states["product"]["new"] in PRODUCTS_TO_CHECK:
+            bugs_data.append({
+              'id': bug_data['id'],
+            })
+            bugs_table.append([
+                bug_data['id'],
+                COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+                label,
+                'added',
+            ])
 
     fields = [
               'id',
               'product',
               'component',
+              'severity',
               'history',
              ]
 
@@ -153,38 +172,25 @@ def get_added(label, start_date, end_date):
 def get_lowered(label, start_date, end_date):
 
     def bug_handler(bug_data):
-        historyProcessed = False
-        for historyItem in bug_data['history']:
-            for change in historyItem['changes']:
-                if change['field_name'] == 'severity':
-                    change_time_str = historyItem['when']
-                    change_time = datetime.datetime.strptime(change_time_str, '%Y-%m-%dT%H:%M:%SZ')
-                    change_time = pytz.utc.localize(change_time).date()
-                    if change_time < start_date:
-                        continue
-                    if change_time > end_date:
-                        historyProcessed = True
-                        break
-                    severity_old = change['removed']
-                    severity_new = change['added']
-                    if severity_old in SEVERITIES and severity_new not in SEVERITIES:
-                        bugs_data.append({
-                          'id': bug_data['id'],
-                        })
-                        bugs_table.append([
-                            bug_data['id'],
-                            COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
-                            label,
-                            'lowered',
-                        ])
-                        historyProcessed = True
-            if historyProcessed:
-                break
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "severity"], start_date, end_date)
+        if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
+            return
+        if bug_states["severity"]["old"] in SEVERITIES and bug_states["severity"]["new"] not in SEVERITIES:
+            bugs_data.append({
+              'id': bug_data['id'],
+            })
+            bugs_table.append([
+                bug_data['id'],
+                COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+                label,
+                'lowered',
+            ])
 
     fields = [
               'id',
               'product',
               'component',
+              'severity',
               'history',
              ]
 
@@ -239,20 +245,29 @@ def get_lowered(label, start_date, end_date):
 def get_fixed(label, start_date, end_date):
 
     def bug_handler(bug_data):
-        bugs_data.append({
-          'id': bug_data['id'],
-        })
-        bugs_table.append([
-            bug_data['id'],
-            COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
-            label,
-            'fixed',
-        ])
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "severity", "resolution"], start_date, end_date)
+        if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
+            return
+        if bug_states["severity"]["new"] not in SEVERITIES:
+            return
+        if bug_states["resolution"]["old"] != 'FIXED' and bug_states["resolution"]["new"] == 'FIXED':
+            bugs_data.append({
+              'id': bug_data['id'],
+            })
+            bugs_table.append([
+                bug_data['id'],
+                COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+                label,
+                'fixed',
+            ])
 
     fields = [
               'id',
               'product',
               'component',
+              'resolution',
+              'severity',
+              'history',
              ]
 
     params = {
@@ -301,20 +316,29 @@ def get_fixed(label, start_date, end_date):
 def get_closed_but_not_fixed(label, start_date, end_date):
 
     def bug_handler(bug_data):
-        bugs_data.append({
-          'id': bug_data['id'],
-        })
-        bugs_table.append([
-            bug_data['id'],
-            COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
-            label,
-            'closed',
-        ])
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "severity", "resolution"], start_date, end_date)
+        if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
+            return
+        if bug_states["severity"]["new"] not in SEVERITIES:
+            return
+        if bug_states["resolution"]["old"] == '' and bug_states["resolution"]["new"] not in ['', 'FIXED']:
+            bugs_data.append({
+              'id': bug_data['id'],
+            })
+            bugs_table.append([
+                bug_data['id'],
+                COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+                label,
+                'closed',
+            ])
 
     fields = [
               'id',
               'product',
               'component',
+              'resolution',
+              'severity',
+              'history',
              ]
 
     params = {
@@ -356,6 +380,176 @@ def get_closed_but_not_fixed(label, start_date, end_date):
 
     params['v10'] = start_date
     params['v11'] = end_date
+
+    bugs_data = []
+
+    Bugzilla(params,
+             bughandler=bug_handler,
+             timeout=960).get_data().wait()
+    data = [bug_data['id'] for bug_data in bugs_data]
+
+    return data
+
+def get_moved_to(label, start_date, end_date):
+
+    def bug_handler(bug_data):
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "severity"], start_date, end_date)
+        if bug_states["severity"]["new"] not in SEVERITIES:
+            return
+        if bug_states["product"]["old"] not in PRODUCTS_TO_CHECK and bug_states["product"]["new"] in PRODUCTS_TO_CHECK:
+            bugs_data.append({
+              'id': bug_data['id'],
+            })
+            bugs_table.append([
+                bug_data['id'],
+                COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+                label,
+                'moved_to',
+            ])
+
+    fields = [
+              'id',
+              'product',
+              'component',
+              'severity',
+              'history',
+             ]
+
+    params = {
+        'include_fields': fields,
+        'f1': 'bug_group',
+        'o1': 'notsubstring',
+        'v1': 'security',
+        'f2': 'keywords',
+        'o2': 'nowords',
+        'v2': 'crash',
+        'f3': 'OP',
+        'j3': 'OR',
+        'f4': 'OP',
+        'j4': 'AND_G',
+        'f5': 'bug_severity',
+        'o5': 'changedto',
+        'v5': 'S1',
+        'f6': 'bug_severity',
+        'o6': 'changedafter',
+        'f7': 'bug_severity',
+        'o7': 'changedbefore',
+        'f9': 'CP',
+        'f10': 'OP',
+        'j10': 'AND_G',
+        'f11': 'bug_severity',
+        'o11': 'changedto',
+        'v11': 'S2',
+        'f12': 'bug_severity',
+        'o12': 'changedafter',
+        'f13': 'bug_severity',
+        'o13': 'changedbefore',
+        'f15': 'CP',
+        'f16': 'bug_severity',
+        'o16': 'equals',
+        'v16': 'S1',
+        'f17': 'bug_severity',
+        'o17': 'equals',
+        'v17': 'S2',
+        'f18': 'CP',
+        'f19': 'OP',
+        # The search doesn't supported grouping 'changedafter' and changedbefore'
+        # for 'product'.
+        'j19': 'AND',
+        'f21': 'product',
+        'o21': 'changedafter',
+        'f22': 'product',
+        'o22': 'changedbefore',
+        'f23': 'CP',
+    }
+
+    params['v21'] = start_date
+    params['v22'] = end_date
+
+    bugs_data = []
+
+    Bugzilla(params,
+             bughandler=bug_handler,
+             timeout=960).get_data().wait()
+    data = [bug_data['id'] for bug_data in bugs_data]
+
+    return data
+
+def get_moved_away(label, start_date, end_date):
+
+    def bug_handler(bug_data):
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "severity"], start_date, end_date)
+        if bug_states["severity"]["old"] not in SEVERITIES:
+            return
+        if bug_states["product"]["old"] in PRODUCTS_TO_CHECK and bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
+            bugs_data.append({
+              'id': bug_data['id'],
+            })
+            bugs_table.append([
+                bug_data['id'],
+                COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+                label,
+                'moved_away',
+            ])
+
+    fields = [
+              'id',
+              'product',
+              'component',
+              'severity',
+              'history',
+             ]
+
+    params = {
+        'include_fields': fields,
+        'f1': 'bug_group',
+        'o1': 'notsubstring',
+        'v1': 'security',
+        'f2': 'keywords',
+        'o2': 'nowords',
+        'v2': 'crash',
+        'f3': 'OP',
+        'j3': 'OR',
+        'f4': 'OP',
+        'j4': 'AND_G',
+        'f5': 'bug_severity',
+        'o5': 'changedfrom',
+        'v5': 'S1',
+        'f6': 'bug_severity',
+        'o6': 'changedafter',
+        'f7': 'bug_severity',
+        'o7': 'changedbefore',
+        'f9': 'CP',
+        'f10': 'OP',
+        'j10': 'AND_G',
+        'f11': 'bug_severity',
+        'o11': 'changedfrom',
+        'v11': 'S2',
+        'f12': 'bug_severity',
+        'o12': 'changedafter',
+        'f13': 'bug_severity',
+        'o13': 'changedbefore',
+        'f15': 'CP',
+        'f16': 'bug_severity',
+        'o16': 'equals',
+        'v16': 'S1',
+        'f17': 'bug_severity',
+        'o17': 'equals',
+        'v17': 'S2',
+        'f18': 'CP',
+        'f19': 'OP',
+        # The search doesn't supported grouping 'changedafter' and changedbefore'
+        # for 'product'.
+        'j19': 'AND',
+        'f21': 'product',
+        'o21': 'changedafter',
+        'f22': 'product',
+        'o22': 'changedbefore',
+        'f23': 'CP',
+    }
+
+    params['v21'] = start_date
+    params['v22'] = end_date
 
     bugs_data = []
 
@@ -411,9 +605,8 @@ def get_bugs(time_interval):
     data['lowered'] = get_lowered(label, start_date, end_date)
     data['fixed'] = get_fixed(label, start_date, end_date)
     data['closed'] = get_closed_but_not_fixed(label, start_date, end_date)
-
-    print("label:", label)
-    print("data:", data)
+    data['moved_to'] = get_moved_to(label, start_date, end_date)
+    data['moved_away'] = get_moved_away(label, start_date, end_date)
 
     return data
 
@@ -448,6 +641,8 @@ def write_csv(data_by_time_intervals, open_bugs, bugs_table):
             {"key": "lowered", "value": "Lowered below S2"},
             {"key": "fixed", "value": "S1 or S2 fixed"},
             {"key": "closed", "value": "S1 or S2 closed but not fixed (e.g. as duplicate)"},
+            {"key": "moved_to", "value": "S1 or S2 moved from uninteresting to interesting products"},
+            {"key": "moved_away", "value": "S1 or S2 moved from interesting to uninteresting products"},
         ]
 
         for row_type in row_types:
@@ -536,7 +731,6 @@ elif args.version_min:
 else:
     import sys
     sys.exit('No time intervals requested')
-print("time_intervals:", time_intervals)
 data_by_time_intervals = measure_data(time_intervals)
 open_bugs = get_open(time_intervals[-1]['label'])
 write_csv(data_by_time_intervals, open_bugs, bugs_table)
