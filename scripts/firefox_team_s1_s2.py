@@ -795,8 +795,8 @@ def write_csv(data_by_time_intervals, open_bugs, bugs_table):
             {"key": "lowered", "value": "Lowered below S2"},
             {"key": "fixed", "value": "S1 or S2 fixed"},
             {"key": "closed", "value": "S1 or S2 closed but not fixed (e.g. as duplicate)"},
-            {"key": "moved_to", "value": "S1 or S2 moved from uninteresting to interesting products"},
-            {"key": "moved_away", "value": "S1 or S2 moved from interesting to uninteresting products"},
+            {"key": "moved_to", "value": "S1 or S2 moved away from Firefox Desktop product"},
+            {"key": "moved_away", "value": "S1 or S2 moved to Firefox Desktop product"},
         ]
 
         for row_type in row_types:
