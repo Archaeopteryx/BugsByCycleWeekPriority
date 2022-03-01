@@ -226,7 +226,7 @@ def get_created(label, start_date, end_date):
 def get_increased(label, start_date, end_date):
 
     def bug_handler(bug_data):
-        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() < start_date:
+        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
             return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
         if not (bug_states["severity"]["old"] not in SEVERITIES and bug_states["severity"]["new"] in SEVERITIES):
@@ -537,6 +537,8 @@ def get_closed_but_not_fixed(label, start_date, end_date):
 def get_moved_to(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
+            return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
         if bug_states["severity"]["new"] not in SEVERITIES:
             return
@@ -558,6 +560,7 @@ def get_moved_to(label, start_date, end_date):
               'product',
               'component',
               'severity',
+              'creation_time',
               'history',
              ]
 
@@ -574,22 +577,18 @@ def get_moved_to(label, start_date, end_date):
         'f4': 'OP',
         'j4': 'AND_G',
         'f5': 'bug_severity',
-        'o5': 'changedto',
+        'o5': 'changedfrom',
         'v5': 'S1',
         'f6': 'bug_severity',
         'o6': 'changedafter',
-        'f7': 'bug_severity',
-        'o7': 'changedbefore',
         'f9': 'CP',
         'f10': 'OP',
         'j10': 'AND_G',
         'f11': 'bug_severity',
-        'o11': 'changedto',
+        'o11': 'changedfrom',
         'v11': 'S2',
         'f12': 'bug_severity',
         'o12': 'changedafter',
-        'f13': 'bug_severity',
-        'o13': 'changedbefore',
         'f15': 'CP',
         'f16': 'bug_severity',
         'o16': 'equals',
@@ -609,6 +608,8 @@ def get_moved_to(label, start_date, end_date):
         'f23': 'CP',
     }
 
+    params['v6'] = end_date
+    params['v12'] = end_date
     params['v21'] = start_date
     params['v22'] = end_date
 
@@ -624,6 +625,8 @@ def get_moved_to(label, start_date, end_date):
 def get_moved_away(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
+            return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
         if bug_states["severity"]["old"] not in SEVERITIES:
             return
@@ -645,6 +648,7 @@ def get_moved_away(label, start_date, end_date):
               'product',
               'component',
               'severity',
+              'creation_time',
               'history',
              ]
 
@@ -665,8 +669,6 @@ def get_moved_away(label, start_date, end_date):
         'v5': 'S1',
         'f6': 'bug_severity',
         'o6': 'changedafter',
-        'f7': 'bug_severity',
-        'o7': 'changedbefore',
         'f9': 'CP',
         'f10': 'OP',
         'j10': 'AND_G',
@@ -675,8 +677,6 @@ def get_moved_away(label, start_date, end_date):
         'v11': 'S2',
         'f12': 'bug_severity',
         'o12': 'changedafter',
-        'f13': 'bug_severity',
-        'o13': 'changedbefore',
         'f15': 'CP',
         'f16': 'bug_severity',
         'o16': 'equals',
@@ -696,6 +696,8 @@ def get_moved_away(label, start_date, end_date):
         'f23': 'CP',
     }
 
+    params['v6'] = end_date
+    params['v12'] = end_date
     params['v21'] = start_date
     params['v22'] = end_date
 
@@ -795,8 +797,8 @@ def write_csv(data_by_time_intervals, open_bugs, bugs_table):
             {"key": "lowered", "value": "Lowered below S2"},
             {"key": "fixed", "value": "S1 or S2 fixed"},
             {"key": "closed", "value": "S1 or S2 closed but not fixed (e.g. as duplicate)"},
-            {"key": "moved_to", "value": "S1 or S2 moved away from Firefox Desktop product"},
-            {"key": "moved_away", "value": "S1 or S2 moved to Firefox Desktop product"},
+            {"key": "moved_to", "value": "S1 or S2 moved to Firefox Desktop product"},
+            {"key": "moved_away", "value": "S1 or S2 moved away from Firefox Desktop product"},
         ]
 
         for row_type in row_types:
