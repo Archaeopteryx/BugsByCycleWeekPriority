@@ -226,6 +226,8 @@ def get_created(label, start_date, end_date):
 def get_increased(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if bug_data['id'] in [data['id'] for data in bugs_data]:
+            return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
             return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
@@ -244,6 +246,9 @@ def get_increased(label, start_date, end_date):
                 'increased',
             ])
 
+
+    bugs_data = []
+
     fields = [
               'id',
               'product',
@@ -253,56 +258,41 @@ def get_increased(label, start_date, end_date):
               'history',
              ]
 
-    params = {
-        'include_fields': fields,
-        'product': PRODUCTS_TO_CHECK,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
-        'f2': 'keywords',
-        'o2': 'nowords',
-        'v2': 'crash',
-        'f3': 'OP',
-        'j3': 'OR',
-        'f4': 'OP',
-        'j4': 'AND_G',
-        'f5': 'bug_severity',
-        'o5': 'changedto',
-        'v5': 'S1',
-        'f6': 'bug_severity',
-        'o6': 'changedafter',
-        'f7': 'bug_severity',
-        'o7': 'changedbefore',
-        'f9': 'CP',
-        'f10': 'OP',
-        'j10': 'AND_G',
-        'f11': 'bug_severity',
-        'o11': 'changedto',
-        'v11': 'S2',
-        'f12': 'bug_severity',
-        'o12': 'changedafter',
-        'f13': 'bug_severity',
-        'o13': 'changedbefore',
-        'f15': 'CP',
-        'f16': 'CP',
-        # Using this condition slows the query down and it fails to return data;
-        # this requirement gets handled in the `bug_handler` function
-        # 'f17': 'creation_ts',
-        # 'o17': 'lessthan',
-    }
+    for severity in SEVERITIES:
+        params = {
+            'include_fields': fields,
+            'product': PRODUCTS_TO_CHECK,
+            'f1': 'bug_group',
+            'o1': 'notsubstring',
+            'v1': 'security',
+            'f2': 'keywords',
+            'o2': 'nowords',
+            'v2': 'crash',
+            'f4': 'OP',
+            'j4': 'AND_G',
+            'f5': 'bug_severity',
+            'o5': 'changedto',
+            'v5': severity,
+            'f6': 'bug_severity',
+            'o6': 'changedafter',
+            'f7': 'bug_severity',
+            'o7': 'changedbefore',
+            'f9': 'CP',
+            # Using this condition slows the query down and it fails to return data;
+            # this requirement gets handled in the `bug_handler` function
+            # 'f17': 'creation_ts',
+            # 'o17': 'lessthan',
+        }
 
-    params['v6'] = start_date
-    params['v7'] = end_date
-    params['v12'] = start_date
-    params['v13'] = end_date
-    # See above
-    # params['v17'] = start_date
+        params['v6'] = start_date
+        params['v7'] = end_date
+        # See above
+        # params['v17'] = start_date
 
-    bugs_data = []
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
 
-    Bugzilla(params,
-             bughandler=bug_handler,
-             timeout=960).get_data().wait()
     data = [bug_data['id'] for bug_data in bugs_data]
 
     return data
@@ -310,6 +300,8 @@ def get_increased(label, start_date, end_date):
 def get_lowered(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if bug_data['id'] in [data['id'] for data in bugs_data]:
+            return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
         if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
             return
@@ -326,6 +318,9 @@ def get_lowered(label, start_date, end_date):
                 'lowered',
             ])
 
+
+    bugs_data = []
+
     fields = [
               'id',
               'product',
@@ -334,50 +329,35 @@ def get_lowered(label, start_date, end_date):
               'history',
              ]
 
-    params = {
-        'include_fields': fields,
-        'product': PRODUCTS_TO_CHECK,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
-        'f2': 'keywords',
-        'o2': 'nowords',
-        'v2': 'crash',
-        'f3': 'OP',
-        'j3': 'OR',
-        'f4': 'OP',
-        'j4': 'AND_G',
-        'f5': 'bug_severity',
-        'o5': 'changedfrom',
-        'v5': 'S1',
-        'f6': 'bug_severity',
-        'o6': 'changedafter',
-#        'f7': 'bug_severity',
-#        'o7': 'changedbefore',
-        'f9': 'CP',
-        'f10': 'OP',
-        'j10': 'AND_G',
-        'f11': 'bug_severity',
-        'o11': 'changedfrom',
-        'v11': 'S2',
-        'f12': 'bug_severity',
-        'o12': 'changedafter',
-#        'f13': 'bug_severity',
-#        'o13': 'changedbefore',
-        'f15': 'CP',
-        'f16': 'CP',
-    }
+    for severity in SEVERITIES:
+        params = {
+            'include_fields': fields,
+            'product': PRODUCTS_TO_CHECK,
+            'f1': 'bug_group',
+            'o1': 'notsubstring',
+            'v1': 'security',
+            'f2': 'keywords',
+            'o2': 'nowords',
+            'v2': 'crash',
+            'f4': 'OP',
+            'j4': 'AND_G',
+            'f5': 'bug_severity',
+            'o5': 'changedfrom',
+            'v5': severity,
+            'f6': 'bug_severity',
+            'o6': 'changedafter',
+            'f7': 'bug_severity',
+            'o7': 'changedbefore',
+            'f9': 'CP',
+        }
 
-    params['v6'] = start_date
-#    params['v7'] = end_date
-    params['v12'] = start_date
-#    params['v13'] = end_date
+        params['v6'] = start_date
+        params['v7'] = end_date
 
-    bugs_data = []
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
 
-    Bugzilla(params,
-             bughandler=bug_handler,
-             timeout=960).get_data().wait()
     data = [bug_data['id'] for bug_data in bugs_data]
 
     return data
@@ -385,6 +365,8 @@ def get_lowered(label, start_date, end_date):
 def get_fixed(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if bug_data['id'] in [data['id'] for data in bugs_data]:
+            return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "resolution"], start_date, end_date)
         if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
             return
@@ -403,6 +385,9 @@ def get_fixed(label, start_date, end_date):
                 'fixed',
             ])
 
+
+    bugs_data = []
+
     fields = [
               'id',
               'product',
@@ -412,45 +397,39 @@ def get_fixed(label, start_date, end_date):
               'history',
              ]
 
-    params = {
-        'include_fields': fields,
-        'product': PRODUCTS_TO_CHECK,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
-        'f2': 'keywords',
-        'o2': 'nowords',
-        'v2': 'crash',
-        'f3': 'OP',
-        'j3': 'OR',
-        'f4': 'bug_severity',
-        'o4': 'equals',
-        'v4': 'S1',
-        'f5': 'bug_severity',
-        'o5': 'equals',
-        'v5': 'S2',
-        'f6': 'CP',
-        'j7': 'OR',
-        'f8': 'OP',
-        'j8': 'AND_G',
-        'f9': 'resolution',
-        'o9': 'changedto',
-        'v9': 'FIXED',
-        'f10': 'resolution',
-        'o10': 'changedafter',
-        'f11': 'resolution',
-        'o11': 'changedbefore',
-        'f12': 'CP',
-    }
+    for severity in SEVERITIES:
+        params = {
+            'include_fields': fields,
+            'product': PRODUCTS_TO_CHECK,
+            'f1': 'bug_group',
+            'o1': 'notsubstring',
+            'v1': 'security',
+            'f2': 'keywords',
+            'o2': 'nowords',
+            'v2': 'crash',
+            'f4': 'bug_severity',
+            'o4': 'equals',
+            'v4': severity,
+            'j7': 'OR',
+            'f8': 'OP',
+            'j8': 'AND_G',
+            'f9': 'resolution',
+            'o9': 'changedto',
+            'v9': 'FIXED',
+            'f10': 'resolution',
+            'o10': 'changedafter',
+            'f11': 'resolution',
+            'o11': 'changedbefore',
+            'f12': 'CP',
+        }
 
-    params['v10'] = start_date
-    params['v11'] = end_date
+        params['v10'] = start_date
+        params['v11'] = end_date
 
-    bugs_data = []
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
 
-    Bugzilla(params,
-             bughandler=bug_handler,
-             timeout=960).get_data().wait()
     data = [bug_data['id'] for bug_data in bugs_data]
 
     return data
@@ -458,6 +437,8 @@ def get_fixed(label, start_date, end_date):
 def get_closed_but_not_fixed(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if bug_data['id'] in [data['id'] for data in bugs_data]:
+            return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "resolution"], start_date, end_date)
         if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
             return
@@ -476,6 +457,9 @@ def get_closed_but_not_fixed(label, start_date, end_date):
                 'closed',
             ])
 
+
+    bugs_data = []
+
     fields = [
               'id',
               'product',
@@ -485,51 +469,45 @@ def get_closed_but_not_fixed(label, start_date, end_date):
               'history',
              ]
 
-    params = {
-        'include_fields': fields,
-        'product': PRODUCTS_TO_CHECK,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
-        'f2': 'keywords',
-        'o2': 'nowords',
-        'v2': 'crash',
-        'f3': 'OP',
-        'j3': 'OR',
-        'f4': 'bug_severity',
-        'o4': 'equals',
-        'v4': 'S1',
-        'f5': 'bug_severity',
-        'o5': 'equals',
-        'v5': 'S2',
-        'f6': 'CP',
-        'f7': 'resolution',
-        'o7': 'notequals',
-        'v7': 'FIXED',
-        'f8': 'OP',
-        'j8': 'AND_G',
-        'f9': 'bug_status',
-        'o9': 'changedto',
-        'v9': 'RESOLVED',
-        'f10': 'bug_status',
-        'o10': 'changedafter',
-        'f11': 'bug_status',
-        'o11': 'changedbefore',
-        'f12': 'CP',
-        'f13': 'creation_ts',
-        'o13': 'greaterthan',
-    }
+    for severity in SEVERITIES:
+        params = {
+            'include_fields': fields,
+            'product': PRODUCTS_TO_CHECK,
+            'f1': 'bug_group',
+            'o1': 'notsubstring',
+            'v1': 'security',
+            'f2': 'keywords',
+            'o2': 'nowords',
+            'v2': 'crash',
+            'f4': 'bug_severity',
+            'o4': 'equals',
+            'v4': severity,
+            'f7': 'resolution',
+            'o7': 'notequals',
+            'v7': 'FIXED',
+            'f8': 'OP',
+            'j8': 'AND_G',
+            'f9': 'bug_status',
+            'o9': 'changedto',
+            'v9': 'RESOLVED',
+            'f10': 'bug_status',
+            'o10': 'changedafter',
+            'f11': 'bug_status',
+            'o11': 'changedbefore',
+            # 'f12': 'CP',
+            # 'f13': 'creation_ts',
+            # 'o13': 'greaterthan',
+        }
 
-    params['v13'] = start_date - datetime.timedelta(365)
+        # params['v13'] = start_date - datetime.timedelta(365)
 
-    params['v10'] = start_date
-    params['v11'] = end_date
+        params['v10'] = start_date
+        params['v11'] = end_date
 
-    bugs_data = []
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
 
-    Bugzilla(params,
-             bughandler=bug_handler,
-             timeout=960).get_data().wait()
     data = [bug_data['id'] for bug_data in bugs_data]
 
     return data
@@ -537,6 +515,8 @@ def get_closed_but_not_fixed(label, start_date, end_date):
 def get_moved_to(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if bug_data['id'] in [data['id'] for data in bugs_data]:
+            return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
             return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
@@ -555,6 +535,9 @@ def get_moved_to(label, start_date, end_date):
                 'moved_to',
             ])
 
+
+    bugs_data = []
+
     fields = [
               'id',
               'product',
@@ -564,60 +547,48 @@ def get_moved_to(label, start_date, end_date):
               'history',
              ]
 
-    params = {
-        'include_fields': fields,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
-        'f2': 'keywords',
-        'o2': 'nowords',
-        'v2': 'crash',
-        'f3': 'OP',
-        'j3': 'OR',
-        'f4': 'OP',
-        'j4': 'AND_G',
-        'f5': 'bug_severity',
-        'o5': 'changedfrom',
-        'v5': 'S1',
-        'f6': 'bug_severity',
-        'o6': 'changedafter',
-        'f9': 'CP',
-        'f10': 'OP',
-        'j10': 'AND_G',
-        'f11': 'bug_severity',
-        'o11': 'changedfrom',
-        'v11': 'S2',
-        'f12': 'bug_severity',
-        'o12': 'changedafter',
-        'f15': 'CP',
-        'f16': 'bug_severity',
-        'o16': 'equals',
-        'v16': 'S1',
-        'f17': 'bug_severity',
-        'o17': 'equals',
-        'v17': 'S2',
-        'f18': 'CP',
-        'f19': 'OP',
-        # The search doesn't supported grouping 'changedafter' and changedbefore'
-        # for 'product'.
-        'j19': 'AND',
-        'f21': 'product',
-        'o21': 'changedafter',
-        'f22': 'product',
-        'o22': 'changedbefore',
-        'f23': 'CP',
-    }
+    for severity in SEVERITIES:
+        params = {
+            'include_fields': fields,
+            'f1': 'bug_group',
+            'o1': 'notsubstring',
+            'v1': 'security',
+            'f2': 'keywords',
+            'o2': 'nowords',
+            'v2': 'crash',
+            'f3': 'OP',
+            'j3': 'OR',
+            'f4': 'OP',
+            'j4': 'AND_G',
+            'f5': 'bug_severity',
+            'o5': 'changedfrom',
+            'v5': severity,
+            'f6': 'bug_severity',
+            'o6': 'changedafter',
+            'f9': 'CP',
+            'f16': 'bug_severity',
+            'o16': 'equals',
+            'v16': severity,
+            'f18': 'CP',
+            'f19': 'OP',
+            # The search doesn't supported grouping 'changedafter' and changedbefore'
+            # for 'product'.
+            'j19': 'AND',
+            'f21': 'product',
+            'o21': 'changedafter',
+            'f22': 'product',
+            'o22': 'changedbefore',
+            'f23': 'CP',
+        }
 
-    params['v6'] = end_date
-    params['v12'] = end_date
-    params['v21'] = start_date
-    params['v22'] = end_date
+        params['v6'] = end_date
+        params['v21'] = start_date
+        params['v22'] = end_date
 
-    bugs_data = []
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
 
-    Bugzilla(params,
-             bughandler=bug_handler,
-             timeout=960).get_data().wait()
     data = [bug_data['id'] for bug_data in bugs_data]
 
     return data
@@ -625,6 +596,8 @@ def get_moved_to(label, start_date, end_date):
 def get_moved_away(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if bug_data['id'] in [data['id'] for data in bugs_data]:
+            return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
             return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
@@ -643,6 +616,9 @@ def get_moved_away(label, start_date, end_date):
                 'moved_away',
             ])
 
+
+    bugs_data = []
+
     fields = [
               'id',
               'product',
@@ -652,60 +628,50 @@ def get_moved_away(label, start_date, end_date):
               'history',
              ]
 
-    params = {
-        'include_fields': fields,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
-        'f2': 'keywords',
-        'o2': 'nowords',
-        'v2': 'crash',
-        'f3': 'OP',
-        'j3': 'OR',
-        'f4': 'OP',
-        'j4': 'AND_G',
-        'f5': 'bug_severity',
-        'o5': 'changedfrom',
-        'v5': 'S1',
-        'f6': 'bug_severity',
-        'o6': 'changedafter',
-        'f9': 'CP',
-        'f10': 'OP',
-        'j10': 'AND_G',
-        'f11': 'bug_severity',
-        'o11': 'changedfrom',
-        'v11': 'S2',
-        'f12': 'bug_severity',
-        'o12': 'changedafter',
-        'f15': 'CP',
-        'f16': 'bug_severity',
-        'o16': 'equals',
-        'v16': 'S1',
-        'f17': 'bug_severity',
-        'o17': 'equals',
-        'v17': 'S2',
-        'f18': 'CP',
-        'f19': 'OP',
-        # The search doesn't supported grouping 'changedafter' and changedbefore'
-        # for 'product'.
-        'j19': 'AND',
-        'f21': 'product',
-        'o21': 'changedafter',
-        'f22': 'product',
-        'o22': 'changedbefore',
-        'f23': 'CP',
-    }
+    for severity in SEVERITIES:
+        params = {
+            'include_fields': fields,
+            'f1': 'bug_group',
+            'o1': 'notsubstring',
+            'v1': 'security',
+            'f2': 'keywords',
+            'o2': 'nowords',
+            'v2': 'crash',
+            'f3': 'OP',
+            'j3': 'OR',
+            'f4': 'OP',
+            'j4': 'AND_G',
+            'f5': 'bug_severity',
+            'o5': 'changedfrom',
+            'v5': severity,
+            'f6': 'bug_severity',
+            'o6': 'changedafter',
+            'f9': 'CP',
+            'f16': 'bug_severity',
+            'o16': 'equals',
+            'v16': severity,
+            'f18': 'CP',
+            'f19': 'OP',
+            # The search doesn't supported grouping 'changedafter' and changedbefore'
+            # for 'product'.
+            'j19': 'AND',
+            'f21': 'product',
+            'o21': 'changedafter',
+            'f22': 'product',
+            'o22': 'changedbefore',
+            'f23': 'CP',
+        }
 
-    params['v6'] = end_date
-    params['v12'] = end_date
-    params['v21'] = start_date
-    params['v22'] = end_date
+        params['v6'] = end_date
+        params['v21'] = start_date
+        params['v22'] = end_date
 
-    bugs_data = []
+        bugs_data = []
 
-    Bugzilla(params,
-             bughandler=bug_handler,
-             timeout=960).get_data().wait()
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
+
     data = [bug_data['id'] for bug_data in bugs_data]
 
     return data
