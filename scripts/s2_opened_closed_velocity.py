@@ -202,7 +202,7 @@ def measure_data(time_intervals):
     return data_by_time_intervals
 
 def write_csv(bug_data):
-    with open('data/s2_opened_closed_velocity_v2.csv', 'w') as Out:
+    with open('data/s2_opened_closed_velocity.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
         writer.writerow(['Bugs with severity S2'])
