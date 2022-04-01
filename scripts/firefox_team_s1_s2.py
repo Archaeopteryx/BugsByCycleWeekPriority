@@ -715,6 +715,45 @@ def get_open(label):
 
     return data
 
+def get_open_blocked_ux(label):
+
+    def bug_handler(bug_data):
+        if [bug_data["product"], bug_data["component"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
+            return
+        bugs_data.append({
+          'id': bug_data['id'],
+        })
+        bugs_table.append([
+            bug_data['id'],
+            # COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+            bug_data['product'],
+            bug_data['component'],
+            label,
+            'open_blocked_ux',
+        ])
+
+    fields = [
+              'id',
+              'product',
+              'component',
+             ]
+
+    params = {
+        'include_fields': fields,
+        'product': PRODUCTS_TO_CHECK,
+        'bug_status': STATUS_OPEN,
+        'keywords': 'blocked-ux',
+    }
+
+    bugs_data = []
+
+    Bugzilla(params,
+             bughandler=bug_handler,
+             timeout=960).get_data().wait()
+    data = [bug_data['id'] for bug_data in bugs_data]
+
+    return data
+
 def get_bugs(time_interval):
 
     start_date = time_interval['from']
@@ -743,7 +782,7 @@ def measure_data(time_intervals):
         })
     return data_by_time_intervals
 
-def write_csv(data_by_time_intervals, open_bugs, bugs_table):
+def write_csv(data_by_time_intervals, open_bugs, open_blocked_ux_bugs, bugs_table):
     with open('data/firefox_team_s1_s2.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
@@ -782,6 +821,11 @@ def write_csv(data_by_time_intervals, open_bugs, bugs_table):
             len(open_bugs),
         ])
 
+        writer.writerow([
+            "blocked-ux open",
+            len(open_blocked_ux_bugs),
+        ])
+
         writer.writerow([])
 
         writer.writerow([
@@ -804,6 +848,11 @@ def write_csv(data_by_time_intervals, open_bugs, bugs_table):
         writer.writerow([
             "S1 or S2 open",
             BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in open_bugs]),
+        ])
+
+        writer.writerow([
+            "blocked-ux open",
+            BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in open_blocked_ux_bugs]),
         ])
 
         writer.writerow([])
@@ -855,5 +904,6 @@ else:
     sys.exit('No time intervals requested')
 data_by_time_intervals = measure_data(time_intervals)
 open_bugs = get_open(time_intervals[-1]['label'])
-write_csv(data_by_time_intervals, open_bugs, bugs_table)
+open_blocked_ux_bugs = get_open_blocked_ux(time_intervals[-1]['label'])
+write_csv(data_by_time_intervals, open_bugs, open_blocked_ux_bugs, bugs_table)
 
