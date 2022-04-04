@@ -742,6 +742,7 @@ def get_open_blocked_ux(label):
         'include_fields': fields,
         'product': PRODUCTS_TO_CHECK,
         'bug_status': STATUS_OPEN,
+        'severity': SEVERITIES,
         'keywords': 'blocked-ux',
     }
 
@@ -851,7 +852,7 @@ def write_csv(data_by_time_intervals, open_bugs, open_blocked_ux_bugs, bugs_tabl
         ])
 
         writer.writerow([
-            "blocked-ux open",
+            "S1 or S2 open + blocked-ux keyword",
             BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in open_blocked_ux_bugs]),
         ])
 
