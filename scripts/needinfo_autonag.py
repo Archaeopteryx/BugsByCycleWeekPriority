@@ -41,7 +41,7 @@ NEEDINFO_CREATOR_BUGZILLA_EMAIL = 'release-mgmt-account-bot@mozilla.tld'
 # to identify what the needinfo request got set for. Value in seconds.
 TIME_DIFF_MAX_NEEDINFO_COMMENT = 5
 
-def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier):
+def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier, needinfo_creator):
     needinfo_histories = {}
     comments = bug_data['history']
     comment_position = 0
@@ -53,38 +53,45 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
             if not change['added'].startswith('needinfo?') and not change['removed'].startswith('needinfo?'):
                 continue
             if change['added'].startswith('needinfo?'):
-                if historyItem['who'] != NEEDINFO_CREATOR_BUGZILLA_EMAIL:
+                if needinfo_creator is not None and historyItem['who'] != needinfo_creator:
                     continue
                 match = re.search('(?<=needinfo\?\()[^)]*(?=\))', change['added'])
                 if not match:
                     continue
                 user_needinfoed = match.group(0)
                 needinfo_start = parse_time(historyItem['when'], BUGZILLA_DATETIME_FORMAT)
-                for comment in bug_data['comments']:
-                    if comment['creator'] != NEEDINFO_CREATOR_BUGZILLA_EMAIL:
-                        continue
-                    if needinfo_comment_identifier not in comment['text']:
-                        continue
-                    comment_time = parse_time(comment['creation_time'], BUGZILLA_DATETIME_FORMAT)
-                    if abs((needinfo_start - comment_time).total_seconds()) > TIME_DIFF_MAX_NEEDINFO_COMMENT:
-                        continue
+                if needinfo_comment_identifier is None:
                     if user_needinfoed not in needinfo_histories.keys():
                         needinfo_histories[user_needinfoed] = []
-                    # Under rare circumstances, it's possible the same person
-                    # gets needinfo twice (e.g. with the API)
                     if len(needinfo_histories[user_needinfoed]) == 0 or needinfo_histories[user_needinfoed][-1]['end']:
                         needinfo_histories[user_needinfoed].append({
                             'start': needinfo_start,
                             'end': None,
                         })
-                    break
+                else:
+                    for comment in bug_data['comments']:
+                        if needinfo_creator is not None and comment['creator'] != needinfo_creator:
+                            continue
+                        if needinfo_comment_identifier not in comment['text']:
+                            continue
+                        comment_time = parse_time(comment['creation_time'], BUGZILLA_DATETIME_FORMAT)
+                        if abs((needinfo_start - comment_time).total_seconds()) > TIME_DIFF_MAX_NEEDINFO_COMMENT:
+                            continue
+                        if user_needinfoed not in needinfo_histories.keys():
+                            needinfo_histories[user_needinfoed] = []
+                        # Under rare circumstances, it's possible the same person
+                        # gets needinfo twice (e.g. with the API)
+                        if len(needinfo_histories[user_needinfoed]) == 0 or needinfo_histories[user_needinfoed][-1]['end']:
+                            needinfo_histories[user_needinfoed].append({
+                                'start': needinfo_start,
+                                'end': None,
+                            })
+                        break
             if change['removed'].startswith('needinfo?'):
                 match = re.search('(?<=needinfo\?\()[^)]*(?=\))', change['removed'])
                 if not match:
                     continue
                 user_needinfoed = match.group(0)
-                if user_needinfoed == "lsalzman@mozilla.com":
-                    print(needinfo_histories)
                 needinfo_end = parse_time(historyItem['when'], BUGZILLA_DATETIME_FORMAT)
                 if user_needinfoed not in needinfo_histories.keys():
                     # Creation of needinfo flag missing or not by desired user.
@@ -104,10 +111,10 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
                 needinfo_histories[user_needinfoed].pop(i)
     return needinfo_histories
 
-def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier):
+def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier, needinfo_creator=NEEDINFO_CREATOR_BUGZILLA_EMAIL):
 
     def bug_handler(bug_data):
-        needinfo_histories = get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier)
+        needinfo_histories = get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier, needinfo_creator)
         for user_needinfoed in needinfo_histories.keys():
             for needinfo_history in needinfo_histories[user_needinfoed]:
                 bugs_data.append({
@@ -125,22 +132,30 @@ def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier):
     params = {
         'include_fields': fields,
         'product': PRODUCTS_TO_CHECK,
-        'j_top': 'AND_G',
-        'o1': 'changedby',
-        'f1': 'longdesc',
-        'v1': NEEDINFO_CREATOR_BUGZILLA_EMAIL,
-        'o2': 'changedafter',
-        'f2': 'longdesc',
-        'o3': 'changedbefore',
-        'f3': 'longdesc',
-        'o4': 'substring',
-        'f4': 'longdesc',
-        'v4': needinfo_comment_identifier,
-
     }
 
-    params['v2'] = start_date
-    params['v3'] = end_date
+    if needinfo_comment_identifier is not None:
+        params['j_top'] = 'AND_G',
+        params['o1'] = 'changedby',
+        params['f1'] = 'longdesc',
+        params['v1'] = needinfo_creator,
+        params['o2'] = 'changedafter',
+        params['f2'] = 'longdesc',
+        params['v2'] = start_date
+        params['o3'] = 'changedbefore',
+        params['f3'] = 'longdesc',
+        params['v3'] = end_date
+        params['o4'] = 'substring',
+        params['f4'] = 'longdesc',
+        params['v4'] = needinfo_comment_identifier,
+
+    elif needinfo_creator is None:
+        params['o2'] = 'changedafter',
+        params['f2'] = 'flagtypes.name',
+        params['v2'] = start_date
+        params['o3'] = 'changedbefore',
+        params['f3'] = 'flagtypes.name',
+        params['v3'] = end_date
 
     bugs_data = []
 
@@ -166,6 +181,7 @@ def measure_data_for_interval(time_interval):
     data['patch_reviewed_but_not_landed'] = get_needinfo_data(label, start_date, end_date, 'which didn\'t land and no activity in this bug for')
     data['uplift_necessary'] = get_needinfo_data(label, start_date, end_date, 'is this bug important enough to require an uplift?')
     data['meta_bug_without_dependencies'] = get_needinfo_data(label, start_date, end_date, 'The meta keyword is there, the bug doesn\'t depend on other bugs and there is no activity')
+    data['everybodys_needinfos'] = get_needinfo_data(label, start_date, end_date, None, needinfo_creator=None)
 
     return data
 
@@ -201,7 +217,8 @@ def write_csv(data_by_time_intervals):
             {'key': 'severity_missing', 'value': 'Severity missing'},
             {'key': 'patch_reviewed_but_not_landed', 'value': 'Patch reviewed but not landed'},
             {'key': 'uplift_necessary', 'value': 'Uplift necessary? - patch landed but not for all affected branches'},
-            {'key': 'meta_bug_without_dependencies', 'value': '\'meta\' keyword used for no dependencies and no recent activity'},
+            {'key': 'meta_bug_without_dependencies', 'value': 'The meta keyword is there, the bug doesn\'t depend on other bugs and there is no activity'},
+            {'key': 'everybodys_needinfos', 'value': 'Needinfo requests by everybody'},
         ]
 
         for needinfo_type in needinfo_types:
