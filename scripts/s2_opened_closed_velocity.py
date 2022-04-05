@@ -190,7 +190,7 @@ def get_bugs(time_intervals):
     bugs_by_date_list = sorted([{key: value} for key, value in bugs_by_date.items()], key = lambda item: list(item.keys())[0])
     for bugs_for_single_day_dict in bugs_by_date_list:
         key = list(bugs_for_single_day_dict.keys())[0]
-        open_bug_count_by_day.append({key: len(bugs_for_single_day_dict[key])})
+        open_bug_count_by_day.append({key: bugs_for_single_day_dict[key]})
     return open_bug_count_by_day
 
 def measure_data(time_intervals):
@@ -211,10 +211,15 @@ def write_csv(bug_data):
         row = ['date'] + [list(day_data.keys())[0] for day_data in bug_data]
         writer.writerow(row)
 
-        row = ['bug_count'] + [list(day_data.values())[0] for day_data in bug_data]
+        row = ['bug_count'] + [len(list(day_data.values())[0]) for day_data in bug_data]
         writer.writerow(row)
-        # for bug_row in bug_data:
-        #     writer.writerow(bug_row)
+
+        writer.writerow([])
+
+        writer.writerow(['Date', 'Bug ID'])
+        for day_data in bug_data:
+            for bug_id in sorted(list(day_data.values())[0]):
+                writer.writerow([list(day_data.keys())[0]] + [bug_id])
 
 parser = argparse.ArgumentParser(description='Count open, opened and closed Firefox bugs with severity S1 or S2 by developmen cycle or week')
 parser.add_argument('--start-date', type=str,
