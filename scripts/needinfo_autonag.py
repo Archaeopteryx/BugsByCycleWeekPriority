@@ -16,6 +16,8 @@ import pytz
 import re
 import urllib.request
 
+from utils.bugzilla import get_component_to_team
+
 import logging
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
@@ -119,12 +121,15 @@ def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier, 
             for needinfo_history in needinfo_histories[user_needinfoed]:
                 bugs_data.append({
                   'id': bug_data['id'],
+                  'team': get_component_to_team(bug_data['product'], bug_data['component']),
                   'user_needinfoed': user_needinfoed,
                   'needinfo_history': needinfo_history,
                 })
 
     fields = [
               'id',
+              'product',
+              'component',
               'comments',
               'history',
              ]
@@ -199,9 +204,23 @@ def measure_data(time_intervals):
             'label': time_interval['label'],
             'data': measure_data_for_interval(time_interval)
         })
-    return data_by_time_intervals
 
-def write_csv(data_by_time_intervals):
+    now = datetime.datetime.utcnow()
+    to_sunday = now.date() - datetime.timedelta(now.weekday() + 1)
+    # Look at last 17 weeks for responsiveness by team
+    from_sunday = to_sunday - datetime.timedelta(17 * 7)
+    bugs_data = get_needinfo_data(to_sunday.isoformat(), from_sunday, to_sunday, None, needinfo_creator=None)
+
+    teams_bugs = {}
+    for bug_data in bugs_data:
+        team = bug_data['team']
+        if team not in teams_bugs:
+            teams_bugs[team] = []
+        teams_bugs[team].append(bug_data)
+
+    return data_by_time_intervals, teams_bugs
+
+def write_csv(data_by_time_intervals, teams_bugs):
     with open('data/needinfo_requests.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
@@ -288,6 +307,60 @@ def write_csv(data_by_time_intervals):
                 row.append(len(bugs_data))
             writer.writerow(row)
 
+        writer.writerow([])
+        writer.writerow(['Needinfo requests by everybody, grouped by components belonging to a team (last 17 weeks)'])
+
+        teams = sorted(list(teams_bugs.keys()))
+        writer.writerow([
+            '',
+        ]
+        +
+        teams
+        )
+
+        row = ['Needinfo requests set']
+        for team in teams:
+            row.append(len(teams_bugs[team]))
+        writer.writerow(row)
+
+        row = ['Answered 0..1 week']
+        for team in teams:
+            bugs_data = []
+            for bug_data in teams_bugs[team]:
+                if bug_data['needinfo_history']['end'] is not None:
+                    if (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1) <= 1:
+                        bugs_data.append(bug_data)
+            row.append(len(bugs_data))
+        writer.writerow(row)
+
+        row = ['Answered 1..2 weeks']
+        for team in teams:
+            bugs_data = []
+            for bug_data in teams_bugs[team]:
+                if bug_data['needinfo_history']['end'] is not None:
+                    if 1 < (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1) <= 2:
+                        bugs_data.append(bug_data)
+            row.append(len(bugs_data))
+        writer.writerow(row)
+
+        row = ['Answered >2 weeks']
+        for team in teams:
+            bugs_data = []
+            for bug_data in teams_bugs[team]:
+                if bug_data['needinfo_history']['end'] is not None:
+                    if 2 < (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1):
+                        bugs_data.append(bug_data)
+            row.append(len(bugs_data))
+        writer.writerow(row)
+
+        row = ['Unanswered']
+        for team in teams:
+            bugs_data = []
+            for bug_data in teams_bugs[team]:
+                if bug_data['needinfo_history']['end'] is None:
+                    bugs_data.append(bug_data)
+            row.append(len(bugs_data))
+        writer.writerow(row)
 
 parser = argparse.ArgumentParser(description='Count open, opened and closed Firefox bugs with severity S1 or S2 by developmen cycle or week')
 parser.add_argument('--version-min', type=int,
@@ -328,6 +401,6 @@ elif args.version_min:
 else:
     import sys
     sys.exit('No time intervals requested')
-data_by_time_intervals = measure_data(time_intervals)
-write_csv(data_by_time_intervals)
+data_by_time_intervals, teams_bugs = measure_data(time_intervals)
+write_csv(data_by_time_intervals, teams_bugs)
 
