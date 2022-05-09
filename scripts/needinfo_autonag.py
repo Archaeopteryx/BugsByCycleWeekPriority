@@ -182,6 +182,7 @@ def measure_data_for_interval(time_interval):
     data['regressed_by_bug_missing'] = get_needinfo_data(label, start_date, end_date, 'could you fill (if possible) the regressed_by field')
     data['low_severity_many_votes_and_cc'] = get_needinfo_data(label, start_date, end_date, 'The severity field for this bug is relatively low')
     data['low_severity_high_security_rating'] = get_needinfo_data(label, start_date, end_date, 'However, the bug is flagged with the')
+    data['low_severity_high_accessibility_severity'] = get_needinfo_data(label, start_date, end_date, 'the accessibility severity is higher')
     data['severity_missing'] = get_needinfo_data(label, start_date, end_date, 'The severity field is not set for this bug.')
     data['patch_reviewed_but_not_landed'] = get_needinfo_data(label, start_date, end_date, 'which didn\'t land and no activity in this bug for')
     data['uplift_necessary'] = get_needinfo_data(label, start_date, end_date, 'is this bug important enough to require an uplift?')
@@ -233,6 +234,7 @@ def write_csv(data_by_time_intervals, teams_bugs):
             {'key': 'regressed_by_bug_missing', 'value': '\'Regression\' keyword set but \'Regressed By\' empty'},
             {'key': 'low_severity_many_votes_and_cc', 'value': 'Low severity but many votes and CCs'},
             {'key': 'low_severity_high_security_rating', 'value': 'Low severity but high security rating'},
+            {'key': 'low_severity_high_accessibility_severity', 'value': 'Low severity but high accessibility severity'},
             {'key': 'severity_missing', 'value': 'Severity missing'},
             {'key': 'patch_reviewed_but_not_landed', 'value': 'Patch reviewed but not landed'},
             {'key': 'uplift_necessary', 'value': 'Uplift necessary? - patch landed but not for all affected branches'},
