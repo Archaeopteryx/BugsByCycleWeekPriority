@@ -37,16 +37,34 @@ PRODUCTS_TO_CHECK = [
     'WebExtensions',
 ]
 
+# Time after which a needinfo request got cleared which gets checked if a user
+# reaction got triggered, e.g. a field value like 'severity' got changed.
+# In seconds
+FOLLOWUP_LIMIT =  60 * 60
+
 NEEDINFO_CREATOR_BUGZILLA_EMAIL = 'release-mgmt-account-bot@mozilla.tld'
 
 # Maximum time difference between needinfo getting set and Bugzilla comment. Used
 # to identify what the needinfo request got set for. Value in seconds.
 TIME_DIFF_MAX_NEEDINFO_COMMENT = 5
 
-def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier, needinfo_creator):
+def check_reaction(bug_data, initial_modification, reaction_conditions, followup_limit=FOLLOWUP_LIMIT):
+    reaction_fields = reaction_conditions['fields']
+    for historyItem in bug_data['history']:
+        change_time = parse_time(historyItem['when'], BUGZILLA_DATETIME_FORMAT)
+        if change_time > initial_modification + datetime.timedelta(seconds = followup_limit):
+            return False
+        for change in historyItem['changes']:
+            field = change['field_name']
+            if field not in reaction_fields:
+                continue
+            # change_time < initial_modification + followup_limit handled above
+            if change_time > initial_modification - datetime.timedelta(seconds = TIME_DIFF_MAX_NEEDINFO_COMMENT):
+                return True
+    return False
+
+def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier, needinfo_creator, reaction_conditions):
     needinfo_histories = {}
-    comments = bug_data['history']
-    comment_position = 0
     for historyItem in bug_data['history']:
         for change in historyItem['changes']:
             field = change['field_name']
@@ -69,6 +87,7 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
                         needinfo_histories[user_needinfoed].append({
                             'start': needinfo_start,
                             'end': None,
+                            'reaction': None,
                         })
                 else:
                     for comment in bug_data['comments']:
@@ -87,6 +106,7 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
                             needinfo_histories[user_needinfoed].append({
                                 'start': needinfo_start,
                                 'end': None,
+                                'reaction': None,
                             })
                         break
             if change['removed'].startswith('needinfo?'):
@@ -105,6 +125,8 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
                     # Creation of needinfo not by desired user.
                     continue
                 needinfo_histories[user_needinfoed][-1]['end'] = needinfo_end
+                reaction = check_reaction(bug_data, needinfo_end, reaction_conditions) if reaction_conditions else None
+                needinfo_histories[user_needinfoed][-1]['reaction'] = reaction
 
     for user_needinfoed in needinfo_histories.keys():
         for i in range(len(needinfo_histories[user_needinfoed]) - 1, -1, -1):
@@ -113,10 +135,10 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
                 needinfo_histories[user_needinfoed].pop(i)
     return needinfo_histories
 
-def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier, needinfo_creator=NEEDINFO_CREATOR_BUGZILLA_EMAIL):
+def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier, needinfo_creator=NEEDINFO_CREATOR_BUGZILLA_EMAIL, reaction_conditions={}):
 
     def bug_handler(bug_data):
-        needinfo_histories = get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier, needinfo_creator)
+        needinfo_histories = get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier, needinfo_creator, reaction_conditions)
         for user_needinfoed in needinfo_histories.keys():
             for needinfo_history in needinfo_histories[user_needinfoed]:
                 bugs_data.append({
@@ -179,11 +201,31 @@ def measure_data_for_interval(time_interval):
     data['assignee_no_login'] = get_needinfo_data(label, start_date, end_date, 'The bug assignee didn\'t login in')
     data['leave_open_no_activity'] = get_needinfo_data(label, start_date, end_date, 'The leave-open keyword is there and there is no activity')
     data['needinfo_regression_author'] = get_needinfo_data(label, start_date, end_date, 'since you are the author of the regressor')
-    data['regressed_by_bug_missing'] = get_needinfo_data(label, start_date, end_date, 'could you fill (if possible) the regressed_by field')
-    data['low_severity_many_votes_and_cc'] = get_needinfo_data(label, start_date, end_date, 'The severity field for this bug is relatively low')
-    data['low_severity_high_security_rating'] = get_needinfo_data(label, start_date, end_date, 'However, the bug is flagged with the')
-    data['low_severity_high_accessibility_severity'] = get_needinfo_data(label, start_date, end_date, 'the accessibility severity is higher')
-    data['severity_missing'] = get_needinfo_data(label, start_date, end_date, 'The severity field is not set for this bug.')
+    data['regressed_by_bug_missing'] = get_needinfo_data(label, start_date, end_date, 'could you fill (if possible) the regressed_by field', reaction_conditions=
+      {
+        'fields': ['regressed_by']
+      }
+    )
+    data['low_severity_many_votes_and_cc'] = get_needinfo_data(label, start_date, end_date, 'The severity field for this bug is relatively low', reaction_conditions=
+      {
+        'fields': ['severity']
+      }
+    )
+    data['low_severity_high_security_rating'] = get_needinfo_data(label, start_date, end_date, 'However, the bug is flagged with the', reaction_conditions=
+      {
+        'fields': ['severity']
+      }
+    )
+    data['low_severity_high_accessibility_severity'] = get_needinfo_data(label, start_date, end_date, 'the accessibility severity is higher', reaction_conditions=
+      {
+        'fields': ['severity']
+      }
+    )
+    data['severity_missing'] = get_needinfo_data(label, start_date, end_date, 'The severity field is not set for this bug.', reaction_conditions=
+      {
+        'fields': ['severity']
+      }
+    )
     data['patch_reviewed_but_not_landed'] = get_needinfo_data(label, start_date, end_date, 'which didn\'t land and no activity in this bug for')
     data['uplift_necessary'] = get_needinfo_data(label, start_date, end_date, 'is this bug important enough to require an uplift?')
     data['meta_bug_without_dependencies'] = get_needinfo_data(label, start_date, end_date, 'The meta keyword is there, the bug doesn\'t depend on other bugs and there is no activity')
@@ -206,18 +248,21 @@ def measure_data(time_intervals):
             'data': measure_data_for_interval(time_interval)
         })
 
-    now = datetime.datetime.utcnow()
-    to_sunday = now.date() - datetime.timedelta(now.weekday() + 1)
-    # Look at last 17 weeks for responsiveness by team
-    from_sunday = to_sunday - datetime.timedelta(17 * 7)
-    bugs_data = get_needinfo_data(to_sunday.isoformat(), from_sunday, to_sunday, None, needinfo_creator=None)
+    if run_teams:
+        now = datetime.datetime.utcnow()
+        to_sunday = now.date() - datetime.timedelta(now.weekday() + 1)
+        # Look at last 17 weeks for responsiveness by team
+        from_sunday = to_sunday - datetime.timedelta(17 * 7)
+        bugs_data = get_needinfo_data(to_sunday.isoformat(), from_sunday, to_sunday, None, needinfo_creator=None)
 
-    teams_bugs = {}
-    for bug_data in bugs_data:
-        team = bug_data['team']
-        if team not in teams_bugs:
-            teams_bugs[team] = []
-        teams_bugs[team].append(bug_data)
+        teams_bugs = {}
+        for bug_data in bugs_data:
+            team = bug_data['team']
+            if team not in teams_bugs:
+                teams_bugs[team] = []
+            teams_bugs[team].append(bug_data)
+    else:
+        teams_bugs = None
 
     return data_by_time_intervals, teams_bugs
 
@@ -231,11 +276,11 @@ def write_csv(data_by_time_intervals, teams_bugs):
             {'key': 'assignee_no_login', 'value': 'Assignee has not logged into Bugzilla for 7 months'},
             {'key': 'leave_open_no_activity', 'value': 'leave-open keyword set but no recent activity'},
             {'key': 'needinfo_regression_author', 'value': 'User is developer of regressor'},
-            {'key': 'regressed_by_bug_missing', 'value': '\'Regression\' keyword set but \'Regressed By\' empty'},
-            {'key': 'low_severity_many_votes_and_cc', 'value': 'Low severity but many votes and CCs'},
-            {'key': 'low_severity_high_security_rating', 'value': 'Low severity but high security rating'},
-            {'key': 'low_severity_high_accessibility_severity', 'value': 'Low severity but high accessibility severity'},
-            {'key': 'severity_missing', 'value': 'Severity missing'},
+            {'key': 'regressed_by_bug_missing', 'value': '\'Regression\' keyword set but \'Regressed By\' empty', 'reaction': True},
+            {'key': 'low_severity_many_votes_and_cc', 'value': 'Low severity but many votes and CCs', 'reaction': True},
+            {'key': 'low_severity_high_security_rating', 'value': 'Low severity but high security rating', 'reaction': True},
+            {'key': 'low_severity_high_accessibility_severity', 'value': 'Low severity but high accessibility severity', 'reaction': True},
+            {'key': 'severity_missing', 'value': 'Severity missing', 'reaction': True},
             {'key': 'patch_reviewed_but_not_landed', 'value': 'Patch reviewed but not landed'},
             {'key': 'uplift_necessary', 'value': 'Uplift necessary? - patch landed but not for all affected branches'},
             {'key': 'meta_bug_without_dependencies', 'value': 'The meta keyword is there, the bug doesn\'t depend on other bugs and there is no activity'},
@@ -261,6 +306,7 @@ def write_csv(data_by_time_intervals, teams_bugs):
                 data = data_by_time_interval['data']
                 row.append(len(data[needinfo_key]))
             writer.writerow(row)
+            requests_total = row[1:]
 
             row = ['Answered 0..1 week']
             for pos in range(len(data_by_time_intervals) - 1, -1, -1):
@@ -308,72 +354,101 @@ def write_csv(data_by_time_intervals, teams_bugs):
                         bugs_data.append(bug_data)
                 row.append(len(bugs_data))
             writer.writerow(row)
+            answered_total = []
+            for pos in range(len(data_by_time_intervals)):
+                answered_total.append(requests_total[pos] - row[pos + 1])
 
-        writer.writerow([])
-        writer.writerow(['Needinfo requests by everybody, grouped by components belonging to a team (last 17 weeks)'])
+            if 'reaction' in needinfo_type:
+                row = ['Action by users']
+                for pos in range(len(data_by_time_intervals) - 1, -1, -1):
+                    data_by_time_interval = data_by_time_intervals[pos]
+                    data = data_by_time_interval['data']
+                    bugs_data = []
+                    for bug_data in data[needinfo_key]:
+                        if bug_data['needinfo_history']['end'] is not None:
+                            if bug_data['needinfo_history']['reaction']:
+                                bugs_data.append(bug_data)
+                    row.append(len(bugs_data))
+                writer.writerow(row)
+                action_share_row = ['Action by users [share]']
+                for pos in range(len(data_by_time_intervals)):
+                    if answered_total[pos] == 0:
+                        action_share_row.append(None)
+                    else:
+                        action_share_row.append('%.2f' % round(row[pos + 1] / answered_total[pos], 2))
+                writer.writerow(action_share_row)
 
-        teams = sorted(list(teams_bugs.keys()))
-        writer.writerow([
-            '',
-        ]
-        +
-        teams
-        )
 
-        row = ['Needinfo requests set']
-        for team in teams:
-            row.append(len(teams_bugs[team]))
-        writer.writerow(row)
+        if run_teams:
+            writer.writerow([])
+            writer.writerow(['Needinfo requests by everybody, grouped by components belonging to a team (last 17 weeks)'])
 
-        row = ['Answered 0..1 week']
-        for team in teams:
-            bugs_data = []
-            for bug_data in teams_bugs[team]:
-                if bug_data['needinfo_history']['end'] is not None:
-                    if (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1) <= 1:
+            teams = sorted(list(teams_bugs.keys()))
+            writer.writerow([
+                '',
+            ]
+            +
+            teams
+            )
+
+            row = ['Needinfo requests set']
+            for team in teams:
+                row.append(len(teams_bugs[team]))
+            writer.writerow(row)
+
+            row = ['Answered 0..1 week']
+            for team in teams:
+                bugs_data = []
+                for bug_data in teams_bugs[team]:
+                    if bug_data['needinfo_history']['end'] is not None:
+                        if (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1) <= 1:
+                            bugs_data.append(bug_data)
+                row.append(len(bugs_data))
+            writer.writerow(row)
+
+            row = ['Answered 1..2 weeks']
+            for team in teams:
+                bugs_data = []
+                for bug_data in teams_bugs[team]:
+                    if bug_data['needinfo_history']['end'] is not None:
+                        if 1 < (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1) <= 2:
+                            bugs_data.append(bug_data)
+                row.append(len(bugs_data))
+            writer.writerow(row)
+
+            row = ['Answered >2 weeks']
+            for team in teams:
+                bugs_data = []
+                for bug_data in teams_bugs[team]:
+                    if bug_data['needinfo_history']['end'] is not None:
+                        if 2 < (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1):
+                            bugs_data.append(bug_data)
+                row.append(len(bugs_data))
+            writer.writerow(row)
+
+            row = ['Unanswered']
+            for team in teams:
+                bugs_data = []
+                for bug_data in teams_bugs[team]:
+                    if bug_data['needinfo_history']['end'] is None:
                         bugs_data.append(bug_data)
-            row.append(len(bugs_data))
-        writer.writerow(row)
-
-        row = ['Answered 1..2 weeks']
-        for team in teams:
-            bugs_data = []
-            for bug_data in teams_bugs[team]:
-                if bug_data['needinfo_history']['end'] is not None:
-                    if 1 < (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1) <= 2:
-                        bugs_data.append(bug_data)
-            row.append(len(bugs_data))
-        writer.writerow(row)
-
-        row = ['Answered >2 weeks']
-        for team in teams:
-            bugs_data = []
-            for bug_data in teams_bugs[team]:
-                if bug_data['needinfo_history']['end'] is not None:
-                    if 2 < (bug_data['needinfo_history']['end'] - bug_data['needinfo_history']['start']) / datetime.timedelta(weeks = 1):
-                        bugs_data.append(bug_data)
-            row.append(len(bugs_data))
-        writer.writerow(row)
-
-        row = ['Unanswered']
-        for team in teams:
-            bugs_data = []
-            for bug_data in teams_bugs[team]:
-                if bug_data['needinfo_history']['end'] is None:
-                    bugs_data.append(bug_data)
-            row.append(len(bugs_data))
-        writer.writerow(row)
+                row.append(len(bugs_data))
+            writer.writerow(row)
 
 parser = argparse.ArgumentParser(description='Count open, opened and closed Firefox bugs with severity S1 or S2 by developmen cycle or week')
 parser.add_argument('--version-min', type=int,
                     help='Minimum Firefox version to check')
 parser.add_argument('--weeks', type=int,
                     help='Number of recent weeks to check')
+parser.add_argument('--skip-teams',
+                    action='store_true',
+                    help='Do not generate a report about needinfo requests by team')
 parser.add_argument('--debug',
                     action='store_true',
                     help='Show debug information')
 args = parser.parse_args()
 debug = args.debug
+run_teams = not args.skip_teams
 
 time_intervals = []
 if args.weeks:
