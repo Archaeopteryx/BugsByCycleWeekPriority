@@ -130,7 +130,7 @@ def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
                     if bug_states[field]["old"] is None:
                         bug_states[field]["old"] = change['removed']
                     bug_states[field]["new"] = change['added']
-                if change_time > end_date:
+                if change_time >= end_date:
                     if bug_states[field]["old"] is None:
                         bug_states[field]["old"] = change['removed']
                     if bug_states[field]["new"] is None:
@@ -228,9 +228,11 @@ def get_increased(label, start_date, end_date):
     def bug_handler(bug_data):
         if bug_data['id'] in [data['id'] for data in bugs_data]:
             return
-        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
+        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= start_date:
             return
-        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
+        if bug_states["status"]["old"] not in STATUS_OPEN and bug_states["status"]["new"] not in STATUS_OPEN:
+            return
         if not (bug_states["severity"]["old"] not in SEVERITIES and bug_states["severity"]["new"] in SEVERITIES):
             return
         if [bug_states["product"]["old"], bug_states["component"]["old"]] in PRODUCTS_COMPONENTS_TO_CHECK and [bug_states["product"]["new"], bug_states["component"]["new"]] in PRODUCTS_COMPONENTS_TO_CHECK:
@@ -254,6 +256,7 @@ def get_increased(label, start_date, end_date):
               'product',
               'component',
               'severity',
+              'status',
               'creation_time',
               'history',
              ]
@@ -302,8 +305,12 @@ def get_lowered(label, start_date, end_date):
     def bug_handler(bug_data):
         if bug_data['id'] in [data['id'] for data in bugs_data]:
             return
-        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
+        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= start_date:
+            return
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
         if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
+            return
+        if bug_states["status"]["old"] not in STATUS_OPEN and bug_states["status"]["new"] not in STATUS_OPEN:
             return
         if bug_states["severity"]["old"] in SEVERITIES and bug_states["severity"]["new"] not in SEVERITIES:
             bugs_data.append({
@@ -326,6 +333,8 @@ def get_lowered(label, start_date, end_date):
               'product',
               'component',
               'severity',
+              'status',
+              'creation_time',
               'history',
              ]
 
@@ -407,9 +416,6 @@ def get_fixed(label, start_date, end_date):
             'f2': 'keywords',
             'o2': 'nowords',
             'v2': 'crash',
-            'f4': 'bug_severity',
-            'o4': 'equals',
-            'v4': severity,
             'j7': 'OR',
             'f8': 'OP',
             'j8': 'AND_G',
@@ -421,10 +427,25 @@ def get_fixed(label, start_date, end_date):
             'f11': 'resolution',
             'o11': 'changedbefore',
             'f12': 'CP',
+            'f13': 'OP',
+            'j13': 'OR',
+            'f14': 'bug_severity',
+            'o14': 'equals',
+            'v14': severity,
+            'f15': 'OP',
+            'j15': 'AND_G',
+            'f16': 'bug_severity',
+            'o16': 'changedfrom',
+            'v16': severity,
+            'f17': 'bug_severity',
+            'o17': 'changedafter',
+            'f18': 'CP',
+            'f19': 'CP',
         }
 
         params['v10'] = start_date
         params['v11'] = end_date
+        params['v17'] = end_date
 
         Bugzilla(params,
                  bughandler=bug_handler,
@@ -517,9 +538,11 @@ def get_moved_to(label, start_date, end_date):
     def bug_handler(bug_data):
         if bug_data['id'] in [data['id'] for data in bugs_data]:
             return
-        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
+        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= start_date:
             return
-        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
+        if bug_states["status"]["old"] not in STATUS_OPEN and bug_states["status"]["new"] not in STATUS_OPEN:
+            return
         if bug_states["severity"]["new"] not in SEVERITIES:
             return
         if [bug_states["product"]["old"], bug_states["component"]["old"]] not in PRODUCTS_COMPONENTS_TO_CHECK and [bug_states["product"]["new"], bug_states["component"]["new"]] in PRODUCTS_COMPONENTS_TO_CHECK:
@@ -543,6 +566,7 @@ def get_moved_to(label, start_date, end_date):
               'product',
               'component',
               'severity',
+              'status',
               'creation_time',
               'history',
              ]
@@ -600,7 +624,9 @@ def get_moved_away(label, start_date, end_date):
             return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() > start_date:
             return
-        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity"], start_date, end_date)
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
+        if bug_states["status"]["old"] not in STATUS_OPEN and bug_states["status"]["new"] not in STATUS_OPEN:
+            return
         if bug_states["severity"]["old"] not in SEVERITIES:
             return
         if [bug_states["product"]["old"], bug_states["component"]["old"]] in PRODUCTS_COMPONENTS_TO_CHECK and [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
@@ -624,6 +650,7 @@ def get_moved_away(label, start_date, end_date):
               'product',
               'component',
               'severity',
+              'status',
               'creation_time',
               'history',
              ]
@@ -666,8 +693,6 @@ def get_moved_away(label, start_date, end_date):
         params['v21'] = start_date
         params['v22'] = end_date
 
-        bugs_data = []
-
         Bugzilla(params,
                  bughandler=bug_handler,
                  timeout=960).get_data().wait()
@@ -676,10 +701,21 @@ def get_moved_away(label, start_date, end_date):
 
     return data
 
-def get_open(label):
+def get_open(label, start_date, end_date):
 
     def bug_handler(bug_data):
-        if [bug_data["product"], bug_data["component"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
+        if bug_data['id'] in [data['id'] for data in bugs_data]:
+            return
+        if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= end_date:
+            return
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
+        if bug_data['id'] == 1770468:
+            print("severity:", bug_states["severity"]["new"])
+        if bug_states["severity"]["new"] not in SEVERITIES:
+            return
+        if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
+            return
+        if bug_states["status"]["new"] not in STATUS_OPEN:
             return
         bugs_data.append({
           'id': bug_data['id'],
@@ -693,24 +729,79 @@ def get_open(label):
             'open',
         ])
 
+    bugs_data = []
+
     fields = [
               'id',
               'product',
               'component',
+              'severity',
+              'status',
+              'creation_time',
+              'history',
              ]
+
+    for severity in SEVERITIES:
+        params = {
+            'include_fields': fields,
+            'f1': 'bug_group',
+            'o1': 'notsubstring',
+            'v1': 'security',
+            'f2': 'keywords',
+            'o2': 'nowords',
+            'v2': 'crash',
+            'f4': 'OP',
+            'j4': 'AND_G',
+            'f5': 'bug_severity',
+            'o5': 'changedfrom',
+            'v5': severity,
+            'f6': 'bug_severity',
+            'o6': 'changedafter',
+            'f9': 'CP',
+        }
+
+        params['v6'] = end_date
+
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
+
+    params = {
+        'include_fields': fields,
+        'severity': SEVERITIES,
+        'f1': 'bug_group',
+        'o1': 'notsubstring',
+        'v1': 'security',
+        'f2': 'keywords',
+        'o2': 'nowords',
+        'v2': 'crash',
+        'f3': 'bug_status',
+        'o3': 'changedafter',
+    }
+
+    params['v3'] = end_date
+
+    Bugzilla(params,
+             bughandler=bug_handler,
+             timeout=960).get_data().wait()
 
     params = {
         'include_fields': fields,
         'product': PRODUCTS_TO_CHECK,
         'bug_status': STATUS_OPEN,
         'severity': SEVERITIES,
+        'f1': 'bug_group',
+        'o1': 'notsubstring',
+        'v1': 'security',
+        'f2': 'keywords',
+        'o2': 'nowords',
+        'v2': 'crash',
     }
-
-    bugs_data = []
 
     Bugzilla(params,
              bughandler=bug_handler,
              timeout=960).get_data().wait()
+
     data = [bug_data['id'] for bug_data in bugs_data]
 
     return data
@@ -768,6 +859,7 @@ def get_bugs(time_interval):
     data['closed'] = get_closed_but_not_fixed(label, start_date, end_date)
     data['moved_to'] = get_moved_to(label, start_date, end_date)
     data['moved_away'] = get_moved_away(label, start_date, end_date)
+    data['open'] = get_open(label, start_date, end_date)
 
     return data
 
@@ -783,7 +875,7 @@ def measure_data(time_intervals):
         })
     return data_by_time_intervals
 
-def write_csv(data_by_time_intervals, open_bugs, open_blocked_ux_bugs, bugs_table):
+def write_csv(data_by_time_intervals, open_blocked_ux_bugs, bugs_table):
     with open('data/firefox_team_s1_s2.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
@@ -805,6 +897,7 @@ def write_csv(data_by_time_intervals, open_bugs, open_blocked_ux_bugs, bugs_tabl
             {"key": "closed", "value": "S1 or S2 closed but not fixed (e.g. as duplicate)"},
             {"key": "moved_to", "value": "S1 or S2 moved to Firefox Desktop product"},
             {"key": "moved_away", "value": "S1 or S2 moved away from Firefox Desktop product"},
+            {"key": "open", "value": "S1 or S2 open"},
         ]
 
         for row_type in row_types:
@@ -816,11 +909,6 @@ def write_csv(data_by_time_intervals, open_bugs, open_blocked_ux_bugs, bugs_tabl
                 data = data_by_time_interval['data']
                 row.append(len(data[key]))
             writer.writerow(row)
-
-        writer.writerow([
-            "S1 or S2 open",
-            len(open_bugs),
-        ])
 
         writer.writerow([
             "blocked-ux open",
@@ -843,17 +931,17 @@ def write_csv(data_by_time_intervals, open_bugs, open_blocked_ux_bugs, bugs_tabl
             for pos in range(len(data_by_time_intervals) - 1, -1, -1):
                 data_by_time_interval = data_by_time_intervals[pos]
                 data = data_by_time_interval['data']
-                row.append(BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in data[key]]))
+                row.append(BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in sorted(data[key])]))
             writer.writerow(row)
 
-        writer.writerow([
-            "S1 or S2 open",
-            BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in open_bugs]),
-        ])
+        # writer.writerow([
+        #     "S1 or S2 open",
+        #     BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in open_bugs]),
+        # ])
 
         writer.writerow([
             "S1 or S2 open + blocked-ux keyword",
-            BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in open_blocked_ux_bugs]),
+            BUG_LIST_WEB_URL + ','.join([str(bug_id) for bug_id in sorted(open_blocked_ux_bugs)]),
         ])
 
         writer.writerow([])
@@ -904,7 +992,7 @@ else:
     import sys
     sys.exit('No time intervals requested')
 data_by_time_intervals = measure_data(time_intervals)
-open_bugs = get_open(time_intervals[-1]['label'])
+# open_bugs = get_open(time_intervals[-1]['label'])
 open_blocked_ux_bugs = get_open_blocked_ux(time_intervals[-1]['label'])
-write_csv(data_by_time_intervals, open_bugs, open_blocked_ux_bugs, bugs_table)
+write_csv(data_by_time_intervals, open_blocked_ux_bugs, bugs_table)
 
