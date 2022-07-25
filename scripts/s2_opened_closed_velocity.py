@@ -39,6 +39,31 @@ SEVERITIES = ['S2']
 
 STATUS_OPEN = ['UNCONFIRMED', 'NEW', 'ASSIGNED', 'REOPENED']
 
+STATUS_VERSION_EVER_AFFECTED = [
+  'affected',
+  'fix-optional',
+  'fixed',
+  'wontfix',
+  'verified',
+]
+
+STATUS_VERSION_NEVER_AFFECTED = [
+  'disabled',
+  'unaffected',
+  'verified disabled',
+]
+
+STATUS_VERSION_STILL_AFFECTED = [
+  'affected',
+  'fix-optional',
+  'wontfix',
+]
+
+STATUS_VERSION_FIXED = [
+  'fixed',
+  'verified'
+]
+
 def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
     bug_states = {}
     for field in fields:
@@ -70,6 +95,33 @@ def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
         if bug_states[field]["new"] is None:
             bug_states[field]["new"] = bug_data[field]
     return bug_states
+
+def get_status_for_versions(bug_data):
+    status_for_versions = {}
+    for field, value in bug_data.items():
+        if not field.startswith('cf_status_firefox'):
+            continue
+        # Replace with str.removeprefix added in Python 3.9
+        version = field.split('cf_status_firefox')[1]
+        if version.startswith('_esr'):
+            continue
+        if "_" in version:
+            # Some special dot releases got their own status flag, e.g. "67_0_1"
+            continue
+        status_for_versions[int(version)] = value
+    fixed_versions = [version for version, status in status_for_versions.items() if status in STATUS_VERSION_FIXED]
+    fixed_lowest_version = min(fixed_versions) if len(fixed_versions) > 0 else None
+    unfixed_versions = [version for version, status in status_for_versions.items() if status in STATUS_VERSION_STILL_AFFECTED]
+    unfixed_lowest_version = min(unfixed_versions) if len(unfixed_versions) > 0 else None
+    unaffected_versions = [version for version, status in status_for_versions.items() if status in STATUS_VERSION_NEVER_AFFECTED]
+    unaffected_highest_version = max(unaffected_versions) if len(unaffected_versions) > 0 else None
+    if unaffected_highest_version is not None and unfixed_lowest_version is not None and unaffected_highest_version > unfixed_lowest_version:
+        unfixed_lowest_version = None
+    return {
+      "fixed_lowest_version": fixed_lowest_version,
+      "unfixed_lowest_version": unfixed_lowest_version,
+      "unaffected_highest_version": unaffected_highest_version,
+    }
 
 def get_severity_start_and_resolved(bug_data):
     severity_start = None
@@ -118,15 +170,37 @@ def get_bugs(time_intervals):
                 if bug_data['id'] not in bugs_by_date[date_label]:
                     bugs_by_date[date_label].append(bug_data['id'])
             if bug_states["status"]["old"] in STATUS_OPEN and bug_states["resolution"]["new"] == "FIXED":
+                if bug_data["resolution"] == "FIXED":
+                    resolved_time = datetime.datetime.strptime(bug_data['cf_last_resolved'], '%Y-%m-%dT%H:%M:%SZ')
+                    resolved_time = pytz.utc.localize(resolved_time).date()
+                    if str(resolved_time) > '2022-06-30':
+                        continue
+                    bug_id = bug_data["id"]
+                    if bug_id not in fixed_bugs_data:
+                        fixed_bugs_data[bug_id] = {
+                            "status_for_versions": get_status_for_versions(bug_data),
+                            "regressed_by": bug_data["regressed_by"],
+                            "creation_time": bug_data["creation_time"]
+                        }
                 if bug_data['id'] not in fixed_bugs_by_date[date_label]:
                     fixed_bugs_by_date[date_label].append(bug_data['id'])
                 if creation_time < start_date:
                     if bug_data['id'] not in fixed_old_bugs_by_date[date_label]:
                         fixed_old_bugs_by_date[date_label].append(bug_data['id'])
 
+    def regressed_by_handler(bug_data):
+        bug_id = bug_data["id"]
+        if bug_data["resolution"] == "FIXED":
+            regressed_by_bugs_data[bug_id] = {
+                "status_for_versions": get_status_for_versions(bug_data),
+            }
+        else:
+            regressed_by_bugs_data[bug_id] = {}
+
     start_date = time_intervals[0]['from']
 
     bugs_by_date = {}
+    fixed_bugs_data = {}
     fixed_bugs_by_date = {}
     fixed_old_bugs_by_date = {}
     for data_series in [bugs_by_date, fixed_bugs_by_date, fixed_old_bugs_by_date]:
@@ -141,6 +215,8 @@ def get_bugs(time_intervals):
               'resolution',
               'severity',
               'creation_time',
+              'regressed_by',
+              '_custom',
               'history',
              ]
 
@@ -214,9 +290,82 @@ def get_bugs(time_intervals):
         key = list(bugs_for_single_day_dict.keys())[0]
         fixed_old_bug_count_by_day.append({key: bugs_for_single_day_dict[key]})
 
-    return open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count_by_day
+    # For fixed bugs whose first affected version is unknown, check the bug which
+    # caused the regression (if the bug is known) for which version it landed.
+    regressing_bugs = list(set([fixed_bugs_data[bug_id]["regressed_by"][0] for bug_id in fixed_bugs_data if len(fixed_bugs_data[bug_id]["regressed_by"]) > 0]))
+    regressed_by_bugs_data = {}
 
-def write_csv(open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count_by_day):
+    fields = [
+              'id',
+              'resolution',
+              '_custom',
+             ]
+
+    params = {
+        'include_fields': fields,
+    }
+
+    for range_start in range(0, len(regressing_bugs), 500):
+        bug_ids = regressing_bugs[range_start:min(range_start + 500, len(regressing_bugs))]
+        params['id'] = ",".join([str(bug_id) for bug_id in bug_ids])
+
+        Bugzilla(params,
+                 bughandler=regressed_by_handler,
+                 timeout=960).get_data().wait()
+
+    for (bug_id, regressed_by) in list(set([(bug_id, fixed_bugs_data[bug_id]["regressed_by"][0]) for bug_id in fixed_bugs_data if len(fixed_bugs_data[bug_id]["regressed_by"]) > 0])):
+        if regressed_by_bugs_data[regressed_by]:
+            version_regression_started = regressed_by_bugs_data[regressed_by]["status_for_versions"]["fixed_lowest_version"]
+            if version_regression_started:
+                fixed_lowest_version = fixed_bugs_data[bug_id]["status_for_versions"]["fixed_lowest_version"]
+                fixed_bugs_data[bug_id]["unfixed_lowest_version"] = version_regression_started
+                if fixed_lowest_version and fixed_lowest_version <= version_regression_started:
+                    fixed_bugs_data[bug_id]["status_for_versions"]["unfixed_lowest_version"] = None
+                    fixed_bugs_data[bug_id]["status_for_versions"]["unaffected_highest_version"] = fixed_lowest_version - 1
+                else:
+                    fixed_bugs_data[bug_id]["status_for_versions"]["unfixed_lowest_version"] = version_regression_started
+                    fixed_bugs_data[bug_id]["status_for_versions"]["unaffected_highest_version"] = version_regression_started - 1
+
+    # Bugzilla doesn't contain the information which version was first affected/
+    # the last unaffected.
+    # Use the date the bug got reported and assume the Nightly/mozilla-central
+    # version for that day is the first affected one.
+    nightly_start_data = productdates.get_latest_nightly_versions_by_min_version(1)
+    for bug_id in fixed_bugs_data:
+        if fixed_bugs_data[bug_id]["status_for_versions"]["unaffected_highest_version"] is None:
+            creation_time_str = fixed_bugs_data[bug_id]["creation_time"]
+            creation_time = datetime.datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%SZ')
+            creation_time = pytz.utc.localize(creation_time).date()
+            first_affected_version = None
+            version_start_bug_creation_diff_min = None
+            for nightly_start in nightly_start_data:
+                version_start_bug_creation_diff = (creation_time - nightly_start["date"]).days
+                if version_start_bug_creation_diff >= 0:
+                    if first_affected_version is None or version_start_bug_creation_diff < version_start_bug_creation_diff_min:
+                        first_affected_version = nightly_start["version"]
+                        version_start_bug_creation_diff_min = version_start_bug_creation_diff
+            if first_affected_version and first_affected_version < fixed_bugs_data[bug_id]["status_for_versions"]["fixed_lowest_version"]:
+                if first_affected_version > fixed_bugs_data[bug_id]["status_for_versions"]["unfixed_lowest_version"]:
+                    first_affected_version = fixed_bugs_data[bug_id]["status_for_versions"]["unfixed_lowest_version"]
+                fixed_bugs_data[bug_id]["status_for_versions"]["unaffected_highest_version"] = first_affected_version - 1
+
+    affected_start_unknown = [(bug_id, fixed_bugs_data[bug_id]) for bug_id in fixed_bugs_data if fixed_bugs_data[bug_id]["status_for_versions"]["unaffected_highest_version"] is None]
+    # print(f'{len(fixed_bugs_data) - len(affected_start_unknown)} of {len(fixed_bugs_data)} identified')
+
+    bugs_by_affected_version_range = {}
+    for bug_id in fixed_bugs_data:
+        fixed_lowest_version = fixed_bugs_data[bug_id]["status_for_versions"]["fixed_lowest_version"]
+        unaffected_highest_version = fixed_bugs_data[bug_id]["status_for_versions"]["unaffected_highest_version"]
+        if not fixed_lowest_version or not unaffected_highest_version:
+            continue
+        versions_affected = fixed_lowest_version - unaffected_highest_version - 1
+        if versions_affected not in bugs_by_affected_version_range:
+            bugs_by_affected_version_range[versions_affected] = set()
+        bugs_by_affected_version_range[versions_affected].add(bug_id)
+
+    return open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count_by_day, bugs_by_affected_version_range
+
+def write_csv(open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count_by_day, bugs_by_affected_version_range):
     with open('data/s2_opened_closed_velocity.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
@@ -234,6 +383,16 @@ def write_csv(open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count
 
         row = ['fixed, bug with S2 before this week'] + [len(list(day_data.values())[0]) for day_data in fixed_old_bug_count_by_day]
         writer.writerow(row)
+
+        writer.writerow([])
+
+        writer.writerow(['Versions affected', 'Bug count', 'Bugs'])
+        for versions_affected in sorted(bugs_by_affected_version_range.keys()):
+            writer.writerow([
+                versions_affected,
+                len(bugs_by_affected_version_range[versions_affected]),
+                "'" + ",".join(list(map(str, sorted(bugs_by_affected_version_range[versions_affected])))),
+            ])
 
         writer.writerow([])
 
@@ -259,7 +418,7 @@ start_day = datetime.datetime.strptime(start_date, '%Y-%m-%d')
 time_intervals = []
 # First Sunday of the year
 from_day = start_day - datetime.timedelta(7)
-day_max = min(datetime.datetime(2022, 7, 1), datetime.datetime.now())
+day_max = min(datetime.datetime(2023, 1, 1), datetime.datetime.now())
 while from_day < day_max:
     to_day = from_day + datetime.timedelta(7)
     time_intervals.append({
@@ -270,6 +429,6 @@ while from_day < day_max:
     from_day += datetime.timedelta(7)
 # time_intervals.reverse()
 
-open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count_by_day = get_bugs(time_intervals)
-write_csv(open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count_by_day)
+open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count_by_day, bugs_by_affected_version_range = get_bugs(time_intervals)
+write_csv(open_bug_count_by_day, fixed_bug_count_by_day, fixed_old_bug_count_by_day, bugs_by_affected_version_range)
 
