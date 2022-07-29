@@ -96,7 +96,7 @@ def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
             bug_states[field]["new"] = bug_data[field]
     return bug_states
 
-def get_status_for_versions(bug_data):
+def get_status_for_versions(bug_data, adjust_fixed_for_dot_release=False):
     status_for_versions = {}
     for field, value in bug_data.items():
         if not field.startswith('cf_status_firefox'):
@@ -109,14 +109,36 @@ def get_status_for_versions(bug_data):
             # Some special dot releases got their own status flag, e.g. "67_0_1"
             continue
         status_for_versions[int(version)] = value
-    fixed_versions = [version for version, status in status_for_versions.items() if status in STATUS_VERSION_FIXED]
-    fixed_lowest_version = min(fixed_versions) if len(fixed_versions) > 0 else None
-    unfixed_versions = [version for version, status in status_for_versions.items() if status in STATUS_VERSION_STILL_AFFECTED]
-    unfixed_lowest_version = min(unfixed_versions) if len(unfixed_versions) > 0 else None
+
     unaffected_versions = [version for version, status in status_for_versions.items() if status in STATUS_VERSION_NEVER_AFFECTED]
     unaffected_highest_version = max(unaffected_versions) if len(unaffected_versions) > 0 else None
+
+    fixed_versions = [version for version, status in status_for_versions.items() if status in STATUS_VERSION_FIXED]
+    fixed_lowest_version = min(fixed_versions) if len(fixed_versions) > 0 else None
+    fixed_lowest_bumped_for_fix_after_release = False
+    if adjust_fixed_for_dot_release and fixed_lowest_version:
+        fixed_lowest_version_latest = None
+        for historyItem in bug_data['history']:
+            for change in historyItem['changes']:
+                change_time_str = historyItem['when']
+                change_time = datetime.datetime.strptime(change_time_str, '%Y-%m-%dT%H:%M:%SZ')
+                change_time = pytz.utc.localize(change_time).date()
+                if change['field_name'] == f'cf_status_firefox{fixed_lowest_version}' and change['added'] == 'fixed':
+                    fixed_lowest_version_latest = change_time
+        fixed_full_version = f'{fixed_lowest_version}.0'
+        if fixed_lowest_version_latest and fixed_full_version in release_dates and fixed_lowest_version_latest >= release_dates[fixed_full_version]:
+            fixed_lowest_bumped_for_fix_after_release = True
+            print(f'bumped bug {bug_data["id"]} as fixed from version {fixed_lowest_version} to {fixed_lowest_version + 1} at {change_time} on or after release on {release_dates[fixed_full_version]}')
+            fixed_lowest_version += 1
+
+    unfixed_versions = [version for version, status in status_for_versions.items() if status in STATUS_VERSION_STILL_AFFECTED]
+    if fixed_lowest_bumped_for_fix_after_release and unaffected_highest_version and fixed_lowest_version - 1 > unaffected_highest_version:
+        unfixed_versions.append(fixed_lowest_version - 1)
+    unfixed_lowest_version = min(unfixed_versions) if len(unfixed_versions) > 0 else None
+
     if unaffected_highest_version is not None and unfixed_lowest_version is not None and unaffected_highest_version > unfixed_lowest_version:
         unfixed_lowest_version = None
+
     return {
       "fixed_lowest_version": fixed_lowest_version,
       "unfixed_lowest_version": unfixed_lowest_version,
@@ -178,7 +200,7 @@ def get_bugs(time_intervals):
                     bug_id = bug_data["id"]
                     if bug_id not in fixed_bugs_data:
                         fixed_bugs_data[bug_id] = {
-                            "status_for_versions": get_status_for_versions(bug_data),
+                            "status_for_versions": get_status_for_versions(bug_data, adjust_fixed_for_dot_release=True),
                             "regressed_by": bug_data["regressed_by"],
                             "creation_time": bug_data["creation_time"]
                         }
@@ -192,7 +214,7 @@ def get_bugs(time_intervals):
         bug_id = bug_data["id"]
         if bug_data["resolution"] == "FIXED":
             regressed_by_bugs_data[bug_id] = {
-                "status_for_versions": get_status_for_versions(bug_data),
+                "status_for_versions": get_status_for_versions(bug_data, adjust_fixed_for_dot_release=False),
             }
         else:
             regressed_by_bugs_data[bug_id] = {}
@@ -299,6 +321,7 @@ def get_bugs(time_intervals):
               'id',
               'resolution',
               '_custom',
+              'history',
              ]
 
     params = {
@@ -409,6 +432,11 @@ parser.add_argument('--debug',
                     help='Show debug information')
 args = parser.parse_args()
 debug = args.debug
+
+release_start_data = productdates.get_latest_released_versions_by_min_version(1)
+release_dates = {}
+for version_data in release_start_data:
+    release_dates[version_data['version']] = version_data['date']
 
 # Close to date when 'S<number>' severities replaced 'major', 'minor' etc.
 start_date = args.start_date if args.start_date else '2022-01-02'
