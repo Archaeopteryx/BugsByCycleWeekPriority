@@ -5,21 +5,14 @@
 # This scripts generates a report of bugs which
 # * have the severity S1 or S2
 
-import argparse
 import datetime
 import json
-from libmozdata.bugzilla import Bugzilla
 import pytz
 import urllib.request
 
-BUG_LIST_WEB_URL = 'https://bugzilla.mozilla.org/buglist.cgi?bug_id_type=anyexact&query_format=advanced&bug_id='
 BUGZILLA_CONFIG_URL = 'https://bugzilla.mozilla.org/rest/configuration'
 
 COMPONENT_TO_TEAM_MAP = None
-
-STATUS_OPEN = ['UNCONFIRMED', 'NEW', 'ASSIGNED', 'REOPENED']
-STATUS_UNAFFECTED = ['unaffected']
-STATUS_UNKNOWN = ['---']
 
 def get_component_to_team(product, component):
     global COMPONENT_TO_TEAM_MAP
