@@ -13,7 +13,7 @@ import pytz
 import urllib.request
 import sys
 
-from utils.bugzilla import get_relevant_bug_changes
+from utils.bugzilla import BUG_LIST_WEB_URL, get_relevant_bug_changes
 
 import logging
 logging.basicConfig()
@@ -22,49 +22,9 @@ requests_log = logging.getLogger("requests.packages.urllib3")
 requests_log.setLevel(logging.DEBUG)
 requests_log.propagate = True
 
-PRODUCTS_TO_CHECK = [
-    'Core',
-    'Firefox',
-    'Toolkit',
-]
+from config.firefox_team import PRODUCTS_TO_CHECK, PRODUCTS_COMPONENTS_TO_CHECK
 
-PRODUCTS_COMPONENTS_TO_CHECK = [
-    ['Core', 'Window Management'],
-    ['Core', 'XUL'],
-    ['Firefox', 'about:logins'],
-    ['Firefox', 'Address Bar'],
-    ['Firefox', 'Bookmarks & History'],
-    ['Firefox', 'Downloads Panel'],
-    ['Firefox', 'File Handling'],
-    ['Firefox', 'General'],
-    ['Firefox', 'Keyboard Navigation'],
-    ['Firefox', 'Menus'],
-    ['Firefox', 'Migration'],
-    ['Firefox', 'New Tab Page'],
-    ['Firefox', 'Preferences'],
-    ['Firefox', 'Protections UI'],
-    ['Firefox', 'Screenshots'],
-    ['Firefox', 'Search'],
-    ['Firefox', 'Session Restore'],
-    ['Firefox', 'Site Identity'],
-    ['Firefox', 'Site Permissions'],
-    ['Firefox', 'Tabbed Browser'],
-    ['Firefox', 'Theme'],
-    ['Firefox', 'Toolbars and Customization'],
-    ['Firefox', 'Top Sites'],
-    ['Firefox', 'Tours'],
-    ['Toolkit', 'Downloads API'],
-    ['Toolkit', 'General'],
-    ['Toolkit', 'Notifications and Alerts'],
-    ['Toolkit', 'Picture-in-Picture'],
-    ['Toolkit', 'Preferences'],
-    ['Toolkit', 'Printing'],
-    ['Toolkit', 'Reader Mode'],
-    ['Toolkit', 'Toolbars and Toolbar Customization'],
-    ['Toolkit', 'Video/Audio Controls'],
-    ['Toolkit', 'XUL Widgets'],
-]
-
+RESOLUTIONS_IGNORED = ['INVALID']
 STATUS_OPEN_CONFIRMED = ['NEW', 'ASSIGNED', 'REOPENED']
 
 
@@ -78,8 +38,22 @@ def get_regressions_added(label, start_date, end_date):
             return
         if bug_states["status"]["new"] == "UNCONFIRMED":
             return
-        if "regression" not in bug_states["keywords"]["new"] :
+        if bug_states["resolution"]["new"] in RESOLUTIONS_IGNORED:
             return
+        if "regression" not in bug_states["keywords"]["new"]:
+            return
+        if "perf-alert" in bug_data["keywords"]:
+            # Exclude bugs which have been filed with the keyword 'perf-alert'.
+            # Include bugs which got 'perf-alert' keyword later. In this case the
+            # bug wasn't created for a performance regression and the alert
+            # should be an performance improvement which got posted as a comment.
+            perfAlertAdded = False
+            for historyItem in bug_data["history"]:
+                for change in historyItem["changes"]:
+                    if change["field_name"] == "keywords" and "perf-alert" in change["added"].split(", "):
+                        perfAlertAdded = True
+                if not perfAlertAdded:
+                    return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() < start_date:
             if [bug_states["product"]["old"], bug_states["component"]["old"]] in PRODUCTS_COMPONENTS_TO_CHECK and \
               bug_states["status"]["old"] != "UNCONFIRMED" and \
@@ -253,7 +227,7 @@ def write_csv(data_by_time_intervals):
         writer.writerow([])
 
         for key, bug_ids_for_time_intervals in rows.items():
-            writer.writerow([key] + ["'" + ",".join(list(map(str, bug_ids))) for bug_ids in bug_ids_for_time_intervals])
+            writer.writerow([key] + [BUG_LIST_WEB_URL + ",".join(list(map(str, bug_ids))) if bug_ids else "" for bug_ids in bug_ids_for_time_intervals])
 
 
 parser = argparse.ArgumentParser(description='Count confirmed Firefox bugs set as regressions by development cycle or week')

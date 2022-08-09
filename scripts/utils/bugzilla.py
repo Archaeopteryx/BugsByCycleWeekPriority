@@ -12,6 +12,7 @@ import urllib.request
 import sys
 
 BUGZILLA_CONFIG_URL = 'https://bugzilla.mozilla.org/rest/configuration'
+BUG_LIST_WEB_URL = 'https://bugzilla.mozilla.org/buglist.cgi?bug_id_type=anyexact&query_format=advanced&bug_id='
 
 COMPONENT_TO_TEAM_MAP = None
 FIELDS_TYPES_MAP = None
