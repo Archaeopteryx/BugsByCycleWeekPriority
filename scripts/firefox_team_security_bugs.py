@@ -13,7 +13,7 @@ import pytz
 import urllib.request
 import sys
 
-from utils.bugzilla import get_relevant_bug_changes
+from utils.bugzilla import BUG_LIST_WEB_URL, get_relevant_bug_changes
 from config.firefox_team import PRODUCTS_TO_CHECK, PRODUCTS_COMPONENTS_TO_CHECK
 
 import logging
@@ -206,8 +206,8 @@ def write_csv(data_by_time_intervals):
             bugs_data_fixed = data_by_time_interval["data"]["security_fixed"]
             rows[0].append(len(bugs_data_open))
             rows[1].append(len(bugs_data_fixed))
-            rows[2].append("'" + ",".join(list(map(str, sorted([bug_data["id"] for bug_data in bugs_data_open])))))
-            rows[3].append("'" + ",".join(list(map(str, sorted([bug_data["id"] for bug_data in bugs_data_fixed])))))
+            rows[2].append(BUG_LIST_WEB_URL + ",".join(list(map(str, sorted([bug_data["id"] for bug_data in bugs_data_open])))) if bugs_data_open else "")
+            rows[3].append(BUG_LIST_WEB_URL + ",".join(list(map(str, sorted([bug_data["id"] for bug_data in bugs_data_fixed])))) if bugs_data_fixed else "")
         writer.writerows(rows)
 
 
