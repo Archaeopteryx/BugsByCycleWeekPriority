@@ -33,7 +33,7 @@ SEVERITIES = ['S2']
 STATUS_OPEN = ['UNCONFIRMED', 'NEW', 'ASSIGNED', 'REOPENED']
 
 BUG_CREATION_START = '2020-07-01'
-BUG_CREATION_BEFORE = '2022-07-01'
+# BUG_CREATION_BEFORE = '2022-07-01'
 
 def get_bugs(time_intervals):
 
@@ -83,9 +83,9 @@ def get_bugs(time_intervals):
         'f2': 'creation_ts',
         'o2': 'greaterthan',
         'v2': BUG_CREATION_START,
-        'f3': 'creation_ts',
-        'o3': 'lessthan',
-        'v3': BUG_CREATION_BEFORE,
+        # 'f3': 'creation_ts',
+        # 'o3': 'lessthan',
+        # 'v3': BUG_CREATION_BEFORE,
     }
 
     Bugzilla(params,
@@ -100,9 +100,9 @@ def get_bugs(time_intervals):
         'f2': 'creation_ts',
         'o2': 'greaterthan',
         'v2': BUG_CREATION_START,
-        'f3': 'creation_ts',
-        'o3': 'lessthan',
-        'v3': BUG_CREATION_BEFORE,
+        # 'f3': 'creation_ts',
+        # 'o3': 'lessthan',
+        # 'v3': BUG_CREATION_BEFORE,
     }
 
     Bugzilla(params,
@@ -127,7 +127,7 @@ def write_csv(open_bug_count_by_day, fixed_bug_count_by_day):
     with open('data/core_s2_burndown.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
-        writer.writerow(['Open Core bugs with severity S2, filed 2020-07 - 2022-06'])
+        writer.writerow(['Open Core bugs with severity S2 filed since 2020-07-01'])
         writer.writerow([])
 
         row = ['date'] + [list(day_data.keys())[0] for day_data in open_bug_count_by_day]
