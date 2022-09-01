@@ -13,7 +13,7 @@ from logger import logger
 import pytz
 import urllib.request
 
-from utils.bugzilla import get_relevant_bug_changes
+from utils.bugzilla import get_component_to_team, get_relevant_bug_changes
 
 import logging
 logging.basicConfig()
@@ -46,17 +46,28 @@ def get_bugs(time_intervals):
             date_label = time_interval['label']
             if creation_time >= end_date:
                 continue
-            bug_states = get_relevant_bug_changes(bug_data, ["product", "severity", "status", "resolution"], start_date, end_date)
+            bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status", "resolution"], start_date, end_date)
             if bug_states["severity"]["new"] not in SEVERITIES:
                 continue
             if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
                 continue
+            team = get_component_to_team(bug_states["product"]["new"], bug_states["component"]["new"]) or "Unknown"
+            if team not in teams:
+                teams.add(team)
             if bug_states["status"]["new"] in STATUS_OPEN:
                 if bug_data['id'] not in bugs_by_date[date_label]:
-                    bugs_by_date[date_label].append(bug_data['id'])
+                    bugs_by_date[date_label].append({
+                        "id": bug_data['id'],
+                        "team": team,
+                    })
             if bug_states["status"]["old"] in STATUS_OPEN and bug_states["resolution"]["new"] == "FIXED":
                 if bug_data['id'] not in fixed_bugs_by_date[date_label]:
-                    fixed_bugs_by_date[date_label].append(bug_data['id'])
+                    fixed_bugs_by_date[date_label].append({
+                        "id": bug_data['id'],
+                        "team": team,
+                    })
+
+    teams = set()
 
     bugs_by_date = {}
     fixed_bugs_by_date = {}
@@ -68,6 +79,7 @@ def get_bugs(time_intervals):
     fields = [
               'id',
               'product',
+              'component',
               'status',
               'resolution',
               'severity',
@@ -109,11 +121,21 @@ def get_bugs(time_intervals):
              bughandler=bug_handler,
              timeout=960).get_data().wait()
 
-    open_bug_count_by_day = []
+    teams = sorted(list(teams))
+    open_bugs_by_day_and_team = []
     bugs_by_date_list = sorted([{key: value} for key, value in bugs_by_date.items()], key = lambda item: list(item.keys())[0])
     for bugs_for_single_day_dict in bugs_by_date_list:
-        key = list(bugs_for_single_day_dict.keys())[0]
-        open_bug_count_by_day.append({key: bugs_for_single_day_dict[key]})
+        date = list(bugs_for_single_day_dict.keys())[0]
+        open_bugs_for_day_by_team = {}
+        for team in teams:
+            open_bugs_for_day_by_team[team] = []
+        open_bugs = bugs_for_single_day_dict[date]
+        for open_bug in open_bugs:
+            open_bugs_for_day_by_team[open_bug["team"]].append(open_bug["id"])
+        open_bugs_by_day_and_team.append({
+            "date": date,
+            "teams": open_bugs_for_day_by_team
+        })
 
     fixed_bug_count_by_day = []
     bugs_by_date_list = sorted([{key: value} for key, value in fixed_bugs_by_date.items()], key = lambda item: list(item.keys())[0])
@@ -121,19 +143,28 @@ def get_bugs(time_intervals):
         key = list(bugs_for_single_day_dict.keys())[0]
         fixed_bug_count_by_day.append({key: bugs_for_single_day_dict[key]})
 
-    return open_bug_count_by_day, fixed_bug_count_by_day
+    return open_bugs_by_day_and_team, fixed_bug_count_by_day
 
-def write_csv(open_bug_count_by_day, fixed_bug_count_by_day):
+def write_csv(open_bugs_by_day_and_team, fixed_bug_count_by_day):
     with open('data/core_s2_burndown.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
         writer.writerow(['Open Core bugs with severity S2 filed since 2020-07-01'])
         writer.writerow([])
 
-        row = ['date'] + [list(day_data.keys())[0] for day_data in open_bug_count_by_day]
+        row = ['date'] + [day_data["date"] for day_data in open_bugs_by_day_and_team]
         writer.writerow(row)
 
-        row = ['open'] + [len(list(day_data.values())[0]) for day_data in open_bug_count_by_day]
+        row = ['open']
+        for day_data in open_bugs_by_day_and_team:
+            row.append(sum([len(bugs_for_team) for bugs_for_team in day_data["teams"].values()]))
+        writer.writerow(row)
+        row = ['bugs']
+        for day_data in open_bugs_by_day_and_team:
+            bugs = []
+            for bugs_for_team in day_data["teams"].values():
+                bugs.extend(bugs_for_team)
+            row.append(",".join(list(map(str, sorted(bugs)))))
         writer.writerow(row)
 
         row = ['fixed'] + [len(list(day_data.values())[0]) for day_data in fixed_bug_count_by_day]
@@ -157,6 +188,6 @@ while from_day < day_max:
     from_day += datetime.timedelta(7)
 # time_intervals.reverse()
 
-open_bug_count_by_day, fixed_bug_count_by_day = get_bugs(time_intervals)
-write_csv(open_bug_count_by_day, fixed_bug_count_by_day)
+open_bugs_by_day_and_team, fixed_bug_count_by_day = get_bugs(time_intervals)
+write_csv(open_bugs_by_day_and_team, fixed_bug_count_by_day)
 
