@@ -13,7 +13,7 @@ from logger import logger
 import pytz
 import urllib.request
 
-from utils.bugzilla import get_component_to_team, get_relevant_bug_changes
+from utils.bugzilla import BUG_LIST_WEB_URL, get_component_to_team, get_relevant_bug_changes
 
 import logging
 logging.basicConfig()
@@ -56,16 +56,10 @@ def get_bugs(time_intervals):
                 teams.add(team)
             if bug_states["status"]["new"] in STATUS_OPEN:
                 if bug_data['id'] not in bugs_by_date[date_label]:
-                    bugs_by_date[date_label].append({
-                        "id": bug_data['id'],
-                        "team": team,
-                    })
+                    bugs_by_date[date_label][bug_data['id']] = team
             if bug_states["status"]["old"] in STATUS_OPEN and bug_states["resolution"]["new"] == "FIXED":
                 if bug_data['id'] not in fixed_bugs_by_date[date_label]:
-                    fixed_bugs_by_date[date_label].append({
-                        "id": bug_data['id'],
-                        "team": team,
-                    })
+                    fixed_bugs_by_date[date_label][bug_data['id']] = team
 
     teams = set()
 
@@ -74,7 +68,7 @@ def get_bugs(time_intervals):
     for data_series in [bugs_by_date, fixed_bugs_by_date]:
         for time_interval in time_intervals:
             date_label = time_interval['to'].isoformat()
-            data_series[time_interval['label']] = []
+            data_series[time_interval['label']] = {}
 
     fields = [
               'id',
@@ -130,8 +124,8 @@ def get_bugs(time_intervals):
         for team in teams:
             open_bugs_for_day_by_team[team] = []
         open_bugs = bugs_for_single_day_dict[date]
-        for open_bug in open_bugs:
-            open_bugs_for_day_by_team[open_bug["team"]].append(open_bug["id"])
+        for bug_id, team in open_bugs.items():
+            open_bugs_for_day_by_team[team].append(bug_id)
         open_bugs_by_day_and_team.append({
             "date": date,
             "teams": open_bugs_for_day_by_team
@@ -164,11 +158,31 @@ def write_csv(open_bugs_by_day_and_team, fixed_bug_count_by_day):
             bugs = []
             for bugs_for_team in day_data["teams"].values():
                 bugs.extend(bugs_for_team)
-            row.append(",".join(list(map(str, sorted(bugs)))))
+            row.append(BUG_LIST_WEB_URL + ",".join(list(map(str, sorted(bugs)))))
         writer.writerow(row)
 
         row = ['fixed'] + [len(list(day_data.values())[0]) for day_data in fixed_bug_count_by_day]
         writer.writerow(row)
+
+        writer.writerow([])
+
+        row = ['date'] + [day_data["date"] for day_data in open_bugs_by_day_and_team]
+        writer.writerow(row)
+
+        teams = sorted(open_bugs_by_day_and_team[0]["teams"].keys())
+        for team in teams:
+            row = [team] + [len(day_data["teams"][team]) for day_data in open_bugs_by_day_and_team]
+            writer.writerow(row)
+
+        writer.writerow([])
+
+        row = ['date'] + [day_data["date"] for day_data in open_bugs_by_day_and_team]
+        writer.writerow(row)
+
+        teams = sorted(open_bugs_by_day_and_team[0]["teams"].keys())
+        for team in teams:
+            row = [team] + [BUG_LIST_WEB_URL + ",".join(list(map(str, sorted(day_data["teams"][team])))) for day_data in open_bugs_by_day_and_team]
+            writer.writerow(row)
 
 
 start_day = datetime.datetime.strptime(BUG_CREATION_START, '%Y-%m-%d')
