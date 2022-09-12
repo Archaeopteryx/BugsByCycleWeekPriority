@@ -25,6 +25,8 @@ requests_log.propagate = True
 
 STATUS_OPEN = ['UNCONFIRMED', 'NEW', 'ASSIGNED', 'REOPENED']
 
+SEVERITIES = ['S1', 'S2']
+
 def get_security_open(label, start_date, end_date):
 
     def bug_handler(bug_data):
@@ -32,10 +34,12 @@ def get_security_open(label, start_date, end_date):
             return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= end_date:
             return
-        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "status", "keywords", "groups"], start_date, end_date)
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "status", "keywords", "severity", "groups"], start_date, end_date)
         if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
             return
         if bug_states["status"]["new"] not in STATUS_OPEN:
+            return
+        if bug_states["severity"]["new"] not in SEVERITIES:
             return
         if (type(bug_states["groups"]["new"]) == "list" and not any(["security" in group for group in bug_states["groups"]["new"]])) or \
            (type(bug_states["groups"]["new"]) == "str" and not "security" in bug_states["groups"]["new"]):
@@ -54,6 +58,7 @@ def get_security_open(label, start_date, end_date):
               'component',
               'status',
               'keywords',
+              'severity',
               'groups',
               'creation_time',
               'history',
@@ -109,8 +114,10 @@ def get_security_fixed(label, start_date, end_date):
         creation_date = datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date()
         if creation_date >= end_date:
             return
-        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "status", "resolution", "keywords", "groups"], start_date, end_date)
+        bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "status", "resolution", "keywords", "severity", "groups"], start_date, end_date)
         if creation_date < start_date and bug_states["status"]["old"] not in STATUS_OPEN:
+            return
+        if bug_states["severity"]["new"] not in SEVERITIES:
             return
         if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
             return
@@ -131,6 +138,7 @@ def get_security_fixed(label, start_date, end_date):
               'status',
               'resolution',
               'keywords',
+              'severity',
               'groups',
               'creation_time',
               'history',
