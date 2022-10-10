@@ -26,11 +26,25 @@ BUGZILLA_CONFIG_URL = 'https://bugzilla.mozilla.org/rest/configuration'
 
 PRODUCTS_TO_CHECK = [
     'Core',
+    'DevTools',
+    'Firefox',
+    'Toolkit',
 ]
 
 SEVERITIES = ['S2']
 
 STATUS_OPEN = ['UNCONFIRMED', 'NEW', 'ASSIGNED', 'REOPENED']
+
+TEAMS_IGNORED = [
+  'Credential Management',
+  'Desktop Integrations',
+  'Frontend',
+  'Pocket and User Journey',
+  'Search and New Tab',
+  'Services',
+  'Telemetry',
+  'Web Extensions',
+]
 
 BUG_CREATION_START = '2020-07-01'
 # BUG_CREATION_BEFORE = '2022-07-01'
@@ -52,6 +66,8 @@ def get_bugs(time_intervals):
             if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
                 continue
             team = get_component_to_team(bug_states["product"]["new"], bug_states["component"]["new"]) or "Unknown"
+            if team in TEAMS_IGNORED:
+                continue
             if team not in teams:
                 teams.add(team)
             if bug_states["status"]["new"] in STATUS_OPEN:

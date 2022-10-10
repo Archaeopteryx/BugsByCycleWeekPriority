@@ -26,19 +26,12 @@ def get_component_to_team(product, component):
             ID_TO_PRODUCT = {}
             products_data = data['field']['product']['values']
             for pos in range(len(products_data)):
-                if products_data[pos]['isactive'] == 0:
-                    continue
-
                 product_name = products_data[pos]['name']
-
                 ID_TO_PRODUCT[products_data[pos]['id']] = product_name
 
             COMPONENT_TO_TEAM_MAP = {}
             components_data = data['field']['component']['values']
             for component_data in components_data:
-                if component_data['isactive'] == 0:
-                    continue
-
                 if component_data['product_id'] not in ID_TO_PRODUCT.keys():
                     continue
 
