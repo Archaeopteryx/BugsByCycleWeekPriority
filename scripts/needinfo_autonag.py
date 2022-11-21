@@ -72,6 +72,21 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
                 continue
             if not change['added'].startswith('needinfo?') and not change['removed'].startswith('needinfo?'):
                 continue
+            if change['removed'].startswith('needinfo?'):
+                match = re.search('(?<=needinfo\?\()[^)]*(?=\))', change['removed'])
+                if match:
+                    user_needinfoed = match.group(0)
+                    needinfo_end = parse_time(historyItem['when'], BUGZILLA_DATETIME_FORMAT)
+                    if user_needinfoed in needinfo_histories.keys():
+                        # Creation of needinfo flag not missing and by desired user.
+                        # Even when a bug gets created and the needinfo flag used
+                        # during the creation, it will be recorded as change after
+                        # the bug got created.
+                        if needinfo_histories[user_needinfoed][-1]['end'] is None:
+                            # Creation of needinfo by desired user.
+                            needinfo_histories[user_needinfoed][-1]['end'] = needinfo_end
+                            reaction = check_reaction(bug_data, needinfo_end, reaction_conditions) if reaction_conditions else None
+                            needinfo_histories[user_needinfoed][-1]['reaction'] = reaction
             if change['added'].startswith('needinfo?'):
                 if needinfo_creator is not None and historyItem['who'] != needinfo_creator:
                     continue
@@ -109,24 +124,6 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
                                 'reaction': None,
                             })
                         break
-            if change['removed'].startswith('needinfo?'):
-                match = re.search('(?<=needinfo\?\()[^)]*(?=\))', change['removed'])
-                if not match:
-                    continue
-                user_needinfoed = match.group(0)
-                needinfo_end = parse_time(historyItem['when'], BUGZILLA_DATETIME_FORMAT)
-                if user_needinfoed not in needinfo_histories.keys():
-                    # Creation of needinfo flag missing or not by desired user.
-                    # Even when a bug gets created and the needinfo flag used
-                    # during the creation, it will be recorded as change after
-                    # the bug got created.
-                    continue
-                if needinfo_histories[user_needinfoed][-1]['end'] is not None:
-                    # Creation of needinfo not by desired user.
-                    continue
-                needinfo_histories[user_needinfoed][-1]['end'] = needinfo_end
-                reaction = check_reaction(bug_data, needinfo_end, reaction_conditions) if reaction_conditions else None
-                needinfo_histories[user_needinfoed][-1]['reaction'] = reaction
 
     for user_needinfoed in needinfo_histories.keys():
         for i in range(len(needinfo_histories[user_needinfoed]) - 1, -1, -1):
@@ -141,6 +138,10 @@ def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier, 
         needinfo_histories = get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier, needinfo_creator, reaction_conditions)
         for user_needinfoed in needinfo_histories.keys():
             for needinfo_history in needinfo_histories[user_needinfoed]:
+                if needinfo_history['end'] is not None and needinfo_history['end'].date() < end_date:
+                    continue
+                if get_component_to_team(bug_data['product'], bug_data['component']) is None:
+                    print(f"team value None for bug {bug_data['id']}: {bug_data['product']} :: {bug_data['component']}")
                 bugs_data.append({
                   'id': bug_data['id'],
                   'team': get_component_to_team(bug_data['product'], bug_data['component']),
