@@ -709,8 +709,6 @@ def get_open(label, start_date, end_date):
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= end_date:
             return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
-        if bug_data['id'] == 1770468:
-            print("severity:", bug_states["severity"]["new"])
         if bug_states["severity"]["new"] not in SEVERITIES:
             return
         if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
@@ -863,6 +861,88 @@ def get_bugs(time_interval):
 
     return data
 
+def get_bugs_multiple_time_intervals(time_intervals, field, conditions):
+
+    def bug_handler(bug_data):
+        for time_interval_pos in range(len(time_intervals)):
+            time_interval = time_intervals[time_interval_pos]
+            label = time_interval['label']
+            start_date = time_interval['from']
+            end_date = time_interval['to']
+            if bug_data['id'] in [data['id'] for data in bugs_data_all_conditions[label][condition['name']]]:
+                continue
+            if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= end_date:
+                continue
+            bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "status"] + [field['data_name']], start_date, end_date)
+            if not condition['operator_py'](condition['values'], bug_states[field['data_name']]["new"]):
+                continue
+            if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
+                continue
+            if bug_states["status"]["new"] not in STATUS_OPEN:
+                continue
+            bugs_data_all_conditions[label][condition['name']].append({
+              'id': bug_data['id'],
+            })
+            bugs_table.append([
+                bug_data['id'],
+                # COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+                bug_data['product'],
+                bug_data['component'],
+                time_interval['label'],
+                condition['name'],
+            ])
+
+    fields = [
+              'id',
+              'product',
+              'component',
+              'status',
+              'creation_time',
+              'history',
+             ] + [field['data_name']]
+
+    time_start = min([time_interval['from'] for time_interval in time_intervals])
+    bugs_data_all_conditions = {}
+    for time_interval in time_intervals:
+        label = time_interval['label']
+        bugs_data_all_conditions[label] = {}
+
+    for condition in conditions:
+        for time_interval in time_intervals:
+            label = time_interval['label']
+            bugs_data_all_conditions[label][condition['name']] = []
+        # bugs_data_all_time_intervals = [[] for time_interval in time_intervals]
+
+        params = {
+            'include_fields': fields,
+            'product': PRODUCTS_TO_CHECK,
+            'bug_status': STATUS_OPEN,
+            'f1': field['query_name'],
+            'o1': condition['operator_bz'],
+            'v1': condition['values'],
+        }
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
+
+        params = {
+            'include_fields': fields,
+            'f1': field['query_name'],
+            'o1': 'changedafter',
+            'v1': time_start,
+        }
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
+
+    data_all_conditions = {}
+    for label, bugs_data_time_interval in bugs_data_all_conditions.items():
+        data_all_conditions[label] = {}
+        for condition_name, bugs_data_time_interval_condition in bugs_data_time_interval.items():
+            data_all_conditions[label][condition_name] = [bug_data['id'] for bug_data in bugs_data_time_interval_condition]
+
+    return data_all_conditions
+
 def log(message):
     print(message)
 
@@ -873,6 +953,29 @@ def measure_data(time_intervals):
             'label': time_interval['label'],
             'data': get_bugs(time_interval)
         })
+
+    conditions = [
+        {
+          'name': 'access-s1',
+          'values': ['access-s1'],
+          'operator_bz': 'anywordssubstr',
+          'operator_py': lambda values, whiteboard: any([value.lower() in whiteboard.lower() for value in values]),
+        },
+        {
+          'name': 'access-s2',
+          'values': ['access-s2'],
+          'operator_bz': 'anywordssubstr',
+          'operator_py': lambda values, whiteboard: any([value.lower() in whiteboard.lower() for value in values]),
+        },
+    ]
+    field = { 'query_name': 'status_whiteboard', 'data_name': 'whiteboard' }
+    data_multiple_conditions = get_bugs_multiple_time_intervals(time_intervals, field, conditions)
+    pos = 0
+    for label, data_time_interval in data_multiple_conditions.items():
+        for condition_name, data_time_interval_condition in data_time_interval.items():
+            data_by_time_intervals[pos]['data'][condition_name] = data_time_interval_condition
+        pos += 1
+
     return data_by_time_intervals
 
 def write_csv(data_by_time_intervals, open_blocked_ux_bugs, bugs_table):
@@ -898,6 +1001,8 @@ def write_csv(data_by_time_intervals, open_blocked_ux_bugs, bugs_table):
             {"key": "moved_to", "value": "S1 or S2 moved to Firefox Desktop product"},
             {"key": "moved_away", "value": "S1 or S2 moved away from Firefox Desktop product"},
             {"key": "open", "value": "S1 or S2 open"},
+            {"key": "access-s1", "value": "accessibility S1"},
+            {"key": "access-s2", "value": "accessibility S2"},
         ]
 
         for row_type in row_types:
