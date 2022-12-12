@@ -124,7 +124,6 @@ def get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_iden
                                 'reaction': None,
                             })
                         break
-
     for user_needinfoed in needinfo_histories.keys():
         for i in range(len(needinfo_histories[user_needinfoed]) - 1, -1, -1):
             needinfo_start_date = needinfo_histories[user_needinfoed][i]['start'].date()
@@ -138,8 +137,6 @@ def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier, 
         needinfo_histories = get_needinfo_histories(bug_data, start_date, end_date, needinfo_comment_identifier, needinfo_creator, reaction_conditions)
         for user_needinfoed in needinfo_histories.keys():
             for needinfo_history in needinfo_histories[user_needinfoed]:
-                if needinfo_history['end'] is not None and needinfo_history['end'].date() < end_date:
-                    continue
                 if get_component_to_team(bug_data['product'], bug_data['component']) is None:
                     print(f"team value None for bug {bug_data['id']}: {bug_data['product']} :: {bug_data['component']}")
                 bugs_data.append({
@@ -200,7 +197,11 @@ def measure_data_for_interval(time_interval):
     label = time_interval['label']
     data = {}
     data['assignee_no_login'] = get_needinfo_data(label, start_date, end_date, 'The bug assignee didn\'t login in')
-    data['leave_open_no_activity'] = get_needinfo_data(label, start_date, end_date, 'The leave-open keyword is there and there is no activity')
+    data['leave_open_no_activity'] = get_needinfo_data(label, start_date, end_date, 'The leave-open keyword is there and there is no activity', reaction_conditions=
+      {
+        'fields': ['keywords', 'status']
+      }
+    )
     data['needinfo_regression_author'] = get_needinfo_data(label, start_date, end_date, 'since you are the author of the regressor')
     data['regressed_by_bug_missing'] = get_needinfo_data(label, start_date, end_date, 'could you fill (if possible) the regressed_by field', reaction_conditions=
       {
@@ -280,7 +281,7 @@ def write_csv(data_by_time_intervals, teams_bugs):
 
         needinfo_types = [
             {'key': 'assignee_no_login', 'value': 'Assignee has not logged into Bugzilla for 7 months'},
-            {'key': 'leave_open_no_activity', 'value': 'leave-open keyword set but no recent activity'},
+            {'key': 'leave_open_no_activity', 'value': 'leave-open keyword set but no recent activity', 'reaction': True},
             {'key': 'needinfo_regression_author', 'value': 'User is developer of regressor'},
             {'key': 'regressed_by_bug_missing', 'value': '\'Regression\' keyword set but \'Regressed By\' empty', 'reaction': True},
             {'key': 'low_severity_but_tracked', 'value': 'Low severity but tracked for version(s)', 'reaction': True},
