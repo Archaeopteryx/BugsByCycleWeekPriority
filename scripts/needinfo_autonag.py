@@ -213,6 +213,11 @@ def measure_data_for_interval(time_interval):
         'fields': ['severity']
       }
     )
+    data['low_severity_high_performance_impact'] = get_needinfo_data(label, start_date, end_date, 'increasing the severity of this performance-impacting bug', reaction_conditions=
+      {
+        'fields': ['severity']
+      }
+    )
     data['low_severity_many_votes_and_cc'] = get_needinfo_data(label, start_date, end_date, 'The severity field for this bug is relatively low', reaction_conditions=
       {
         'fields': ['severity']
@@ -285,6 +290,7 @@ def write_csv(data_by_time_intervals, teams_bugs):
             {'key': 'needinfo_regression_author', 'value': 'User is developer of regressor'},
             {'key': 'regressed_by_bug_missing', 'value': '\'Regression\' keyword set but \'Regressed By\' empty', 'reaction': True},
             {'key': 'low_severity_but_tracked', 'value': 'Low severity but tracked for version(s)', 'reaction': True},
+            {'key': 'low_severity_high_performance_impact', 'value': 'Low severity but high performance impact', 'reaction': True},
             {'key': 'low_severity_many_votes_and_cc', 'value': 'Low severity but many votes and CCs', 'reaction': True},
             {'key': 'low_severity_high_security_rating', 'value': 'Low severity but high security rating', 'reaction': True},
             {'key': 'low_severity_high_accessibility_severity', 'value': 'Low severity but high accessibility severity', 'reaction': True},
