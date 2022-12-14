@@ -25,6 +25,98 @@ requests_log = logging.getLogger("requests.packages.urllib3")
 requests_log.setLevel(logging.DEBUG)
 requests_log.propagate = True
 
+needinfo_types = [
+    {
+        'key': 'assignee_no_login',
+        'label': 'Assignee has not logged into Bugzilla for 7 months',
+        'search_term': 'The bug assignee didn\'t login in'
+    },
+    {
+        'key': 'leave_open_no_activity',
+        'label': 'leave-open keyword set but no recent activity',
+        'search_term': 'The leave-open keyword is there and there is no activity',
+        'reaction_conditions': {
+            'fields': ['keywords', 'status']
+        }
+    },
+    {
+        'key': 'needinfo_regression_author',
+        'label': 'User is developer of regressor',
+        'search_term': 'since you are the author of the regressor'
+    },
+    {
+        'key': 'regressed_by_bug_missing',
+        'label': '\'Regression\' keyword set but \'Regressed By\' empty',
+        'search_term': 'could you fill (if possible) the regressed_by field',
+        'reaction_conditions': {
+            'fields': ['regressed_by']
+        }
+    },
+    {
+        'key': 'low_severity_but_tracked',
+        'label': 'Low severity but tracked for version(s)',
+        'search_term': 'the bug is marked as tracked for',
+        'reaction_conditions': {
+            'fields': ['severity']
+        }
+    },
+    {
+        'key': 'low_severity_high_performance_impact',
+        'label': 'Low severity but high performance impact',
+        'search_term': 'increasing the severity of this performance-impacting bug',
+        'reaction_conditions': {
+            'fields': ['severity']
+        }
+    },
+    {
+        'key': 'low_severity_many_votes_and_cc',
+        'label': 'Low severity but many votes and CCs',
+        'search_term': 'The severity field for this bug is relatively low',
+        'reaction_conditions': {
+            'fields': ['severity']
+        }
+    },
+    {
+        'key': 'low_severity_high_security_rating',
+        'label': 'Low severity but high security rating',
+        'search_term': 'However, the bug is flagged with the',
+        'reaction_conditions': {
+            'fields': ['severity']
+        }
+    },
+    {
+        'key': 'low_severity_high_accessibility_severity',
+        'label': 'Low severity but high accessibility severity',
+        'search_term': 'the accessibility severity is higher',
+        'reaction_conditions': {
+            'fields': ['severity']
+        }
+    },
+    {
+        'key': 'severity_missing',
+        'label': 'Severity missing',
+        'search_term': 'The severity field is not set for this bug.',
+        'reaction_conditions': {
+            'fields': ['severity']
+        }
+    },
+    {
+        'key': 'patch_reviewed_but_not_landed',
+        'label': 'Patch reviewed but not landed',
+        'search_term': 'which didn\'t land and no activity in this bug for'
+    },
+    {
+        'key': 'uplift_necessary',
+        'label': 'Uplift necessary? - patch landed but not for all affected branches',
+        'search_term': 'is this bug important enough to require an uplift?'
+    },
+    {
+        'key': 'meta_bug_without_dependencies',
+        'label': 'The meta keyword is there, the bug doesn\'t depend on other bugs and there is no activity',
+        'search_term': 'The meta keyword is there, the bug doesn\'t depend on other bugs and there is no activity'
+    },
+]
+
 BUGZILLA_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
 PRODUCTS_TO_CHECK = [
@@ -190,58 +282,20 @@ def get_needinfo_data(label, start_date, end_date, needinfo_comment_identifier, 
 
     return bugs_data
 
-def measure_data_for_interval(time_interval):
+def measure_data_for_interval(time_interval, needinfo_types_requested):
 
     start_date = time_interval['from']
     end_date = time_interval['to']
     label = time_interval['label']
     data = {}
-    data['assignee_no_login'] = get_needinfo_data(label, start_date, end_date, 'The bug assignee didn\'t login in')
-    data['leave_open_no_activity'] = get_needinfo_data(label, start_date, end_date, 'The leave-open keyword is there and there is no activity', reaction_conditions=
-      {
-        'fields': ['keywords', 'status']
-      }
-    )
-    data['needinfo_regression_author'] = get_needinfo_data(label, start_date, end_date, 'since you are the author of the regressor')
-    data['regressed_by_bug_missing'] = get_needinfo_data(label, start_date, end_date, 'could you fill (if possible) the regressed_by field', reaction_conditions=
-      {
-        'fields': ['regressed_by']
-      }
-    )
-    data['low_severity_but_tracked'] = get_needinfo_data(label, start_date, end_date, 'the bug is marked as tracked for', reaction_conditions=
-      {
-        'fields': ['severity']
-      }
-    )
-    data['low_severity_high_performance_impact'] = get_needinfo_data(label, start_date, end_date, 'increasing the severity of this performance-impacting bug', reaction_conditions=
-      {
-        'fields': ['severity']
-      }
-    )
-    data['low_severity_many_votes_and_cc'] = get_needinfo_data(label, start_date, end_date, 'The severity field for this bug is relatively low', reaction_conditions=
-      {
-        'fields': ['severity']
-      }
-    )
-    data['low_severity_high_security_rating'] = get_needinfo_data(label, start_date, end_date, 'However, the bug is flagged with the', reaction_conditions=
-      {
-        'fields': ['severity']
-      }
-    )
-    data['low_severity_high_accessibility_severity'] = get_needinfo_data(label, start_date, end_date, 'the accessibility severity is higher', reaction_conditions=
-      {
-        'fields': ['severity']
-      }
-    )
-    data['severity_missing'] = get_needinfo_data(label, start_date, end_date, 'The severity field is not set for this bug.', reaction_conditions=
-      {
-        'fields': ['severity']
-      }
-    )
-    data['patch_reviewed_but_not_landed'] = get_needinfo_data(label, start_date, end_date, 'which didn\'t land and no activity in this bug for')
-    data['uplift_necessary'] = get_needinfo_data(label, start_date, end_date, 'is this bug important enough to require an uplift?')
-    data['meta_bug_without_dependencies'] = get_needinfo_data(label, start_date, end_date, 'The meta keyword is there, the bug doesn\'t depend on other bugs and there is no activity')
-    data['everybodys_needinfos'] = get_needinfo_data(label, start_date, end_date, None, needinfo_creator=None)
+    needinfo_types_to_process = needinfo_types_requested if needinfo_types_requested else needinfo_types
+    for needinfo_type in needinfo_types_to_process:
+        reaction_conditions = needinfo_type['reaction_conditions'] if 'reaction_conditions' in needinfo_type else None
+        data[needinfo_type['key']] = get_needinfo_data(label, start_date, end_date, needinfo_type['key'], reaction_conditions=reaction_conditions)
+    if needinfo_types_requested and 'everybodys_needinfos' in needinfo_types_requested:
+        data['everybodys_needinfos'] = get_needinfo_data(label, start_date, end_date, None, needinfo_creator=None)
+    elif not needinfo_types_requested:
+        data['everybodys_needinfos'] = get_needinfo_data(label, start_date, end_date, None, needinfo_creator=None)
 
     return data
 
@@ -252,12 +306,12 @@ def parse_time(string, format_string):
     change_time = datetime.datetime.strptime(string, format_string)
     return pytz.utc.localize(change_time)
 
-def measure_data(time_intervals):
+def measure_data(time_intervals, needinfo_types_requested):
     data_by_time_intervals = []
     for time_interval in time_intervals:
         data_by_time_intervals.append({
             'label': time_interval['label'],
-            'data': measure_data_for_interval(time_interval)
+            'data': measure_data_for_interval(time_interval, needinfo_types_requested)
         })
 
     if run_teams:
@@ -278,34 +332,29 @@ def measure_data(time_intervals):
 
     return data_by_time_intervals, teams_bugs
 
-def write_csv(data_by_time_intervals, teams_bugs):
+def write_csv(data_by_time_intervals, teams_bugs, needinfo_types_requested):
     with open('data/needinfo_requests.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
         writer.writerow(['Needinfo requests by auto nag bot'])
 
-        needinfo_types = [
-            {'key': 'assignee_no_login', 'value': 'Assignee has not logged into Bugzilla for 7 months'},
-            {'key': 'leave_open_no_activity', 'value': 'leave-open keyword set but no recent activity', 'reaction': True},
-            {'key': 'needinfo_regression_author', 'value': 'User is developer of regressor'},
-            {'key': 'regressed_by_bug_missing', 'value': '\'Regression\' keyword set but \'Regressed By\' empty', 'reaction': True},
-            {'key': 'low_severity_but_tracked', 'value': 'Low severity but tracked for version(s)', 'reaction': True},
-            {'key': 'low_severity_high_performance_impact', 'value': 'Low severity but high performance impact', 'reaction': True},
-            {'key': 'low_severity_many_votes_and_cc', 'value': 'Low severity but many votes and CCs', 'reaction': True},
-            {'key': 'low_severity_high_security_rating', 'value': 'Low severity but high security rating', 'reaction': True},
-            {'key': 'low_severity_high_accessibility_severity', 'value': 'Low severity but high accessibility severity', 'reaction': True},
-            {'key': 'severity_missing', 'value': 'Severity missing', 'reaction': True},
-            {'key': 'patch_reviewed_but_not_landed', 'value': 'Patch reviewed but not landed'},
-            {'key': 'uplift_necessary', 'value': 'Uplift necessary? - patch landed but not for all affected branches'},
-            {'key': 'meta_bug_without_dependencies', 'value': 'The meta keyword is there, the bug doesn\'t depend on other bugs and there is no activity'},
-            {'key': 'everybodys_needinfos', 'value': 'Needinfo requests by everybody'},
-        ]
+        if needinfo_types_requested and 'everybodys_needinfos' in needinfo_types_requested:
+            needinfo_types.append({
+                'key': 'everybodys_needinfos',
+                'label': 'Needinfo requests by everybody'
+            })
+        elif not needinfo_types_requested:
+            needinfo_types_requested = needinfo_types
+            needinfo_types.append({
+                'key': 'everybodys_needinfos',
+                'label': 'Needinfo requests by everybody'
+            })
 
         for needinfo_type in needinfo_types:
             needinfo_key = needinfo_type['key']
 
             writer.writerow([])
-            writer.writerow([needinfo_type['value']])
+            writer.writerow([needinfo_type['label']])
 
             writer.writerow([
                 '',
@@ -372,7 +421,7 @@ def write_csv(data_by_time_intervals, teams_bugs):
             for pos in range(len(data_by_time_intervals)):
                 answered_total.append(requests_total[pos] - row[pos + 1])
 
-            if 'reaction' in needinfo_type:
+            if 'reaction_conditions' in needinfo_type:
                 row = ['Action by users']
                 for pos in range(len(data_by_time_intervals) - 1, -1, -1):
                     data_by_time_interval = data_by_time_intervals[pos]
@@ -449,11 +498,18 @@ def write_csv(data_by_time_intervals, teams_bugs):
                 row.append(len(bugs_data))
             writer.writerow(row)
 
+available_needinfo_types = [needinfo_type['key'] for needinfo_type in needinfo_types] + ['everybodys_needinfos']
+
 parser = argparse.ArgumentParser(description='Count open, opened and closed Firefox bugs with severity S1 or S2 by developmen cycle or week')
 parser.add_argument('--version-min', type=int,
                     help='Minimum Firefox version to check')
 parser.add_argument('--weeks', type=int,
                     help='Number of recent weeks to check')
+parser.add_argument('--types',
+                    action='store',
+                    choices=available_needinfo_types,
+                    nargs="+",
+                    help='Only report on provided needinfo types')
 parser.add_argument('--skip-teams',
                     action='store_true',
                     help='Do not generate a report about needinfo requests by team')
@@ -463,6 +519,7 @@ parser.add_argument('--debug',
 args = parser.parse_args()
 debug = args.debug
 run_teams = not args.skip_teams
+needinfo_types_requested = args.types
 
 time_intervals = []
 if args.weeks:
@@ -492,6 +549,6 @@ elif args.version_min:
 else:
     import sys
     sys.exit('No time intervals requested')
-data_by_time_intervals, teams_bugs = measure_data(time_intervals)
-write_csv(data_by_time_intervals, teams_bugs)
+data_by_time_intervals, teams_bugs = measure_data(time_intervals, needinfo_types_requested)
+write_csv(data_by_time_intervals, teams_bugs, needinfo_types_requested)
 
