@@ -46,7 +46,7 @@ TEAMS_IGNORED = [
   'Web Extensions',
 ]
 
-MEASURE_START = '2022-07-01'
+MEASURE_START = '2023-01-01'
 # BUG_CREATION_BEFORE = '2022-07-01'
 
 def get_bugs(time_intervals):
@@ -100,10 +100,10 @@ def get_bugs(time_intervals):
     params = {
         'include_fields': fields,
         'f1': 'bug_severity',
-        'o1': 'equals',
+        'o1': 'anyexact',
         'v1': SEVERITIES,
         'f2': 'bug_status',
-        'o2': 'equals',
+        'o2': 'anyexact',
         'v2': STATUS_OPEN,
         # 'f3': 'creation_ts',
         # 'o3': 'lessthan',
@@ -117,7 +117,7 @@ def get_bugs(time_intervals):
     params = {
         'include_fields': fields,
         'f1': 'bug_severity',
-        'o1': 'equals',
+        'o1': 'anyexact',
         'v1': SEVERITIES,
         'f2': 'delta_ts',
         'o2': 'greaterthan',
@@ -131,23 +131,24 @@ def get_bugs(time_intervals):
              bughandler=bug_handler,
              timeout=960).get_data().wait()
 
-    params = {
-        'include_fields': fields,
-        'j_top': 'AND_G',
-        'f1': 'bug_severity',
-        'o1': 'changedfrom',
-        'v1': SEVERITIES,
-        'f2': 'bug_severity',
-        'o2': 'changedafter',
-        'v2': MEASURE_START,
-        # 'f3': 'creation_ts',
-        # 'o3': 'lessthan',
-        # 'v3': BUG_CREATION_BEFORE,
-    }
+    for severity in SEVERITIES:
+        params = {
+            'include_fields': fields,
+            'j_top': 'AND_G',
+            'f1': 'bug_severity',
+            'o1': 'changedfrom',
+            'v1': severity,
+            'f2': 'bug_severity',
+            'o2': 'changedafter',
+            'v2': MEASURE_START,
+            # 'f3': 'creation_ts',
+            # 'o3': 'lessthan',
+            # 'v3': BUG_CREATION_BEFORE,
+        }
 
-    Bugzilla(params,
-             bughandler=bug_handler,
-             timeout=960).get_data().wait()
+        Bugzilla(params,
+                 bughandler=bug_handler,
+                 timeout=960).get_data().wait()
 
     teams = sorted(list(teams))
     open_bugs_by_day_and_team = []
