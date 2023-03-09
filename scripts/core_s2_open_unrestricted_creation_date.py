@@ -60,7 +60,7 @@ def get_bugs(time_intervals):
             date_label = time_interval['label']
             if creation_time >= end_date:
                 continue
-            bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status", "resolution"], start_date, end_date)
+            bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status", "resolution", "op_sys"], start_date, end_date)
             if bug_states["severity"]["new"] not in SEVERITIES:
                 continue
             if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
@@ -72,10 +72,16 @@ def get_bugs(time_intervals):
                 teams.add(team)
             if bug_states["status"]["new"] in STATUS_OPEN:
                 if bug_data['id'] not in bugs_by_date[date_label]:
-                    bugs_by_date[date_label][bug_data['id']] = team
+                    bugs_by_date[date_label][bug_data['id']] = {
+                        "team": team,
+                        "os": bug_states["op_sys"]["new"],
+                    }
             if bug_states["status"]["old"] in STATUS_OPEN and bug_states["resolution"]["new"] == "FIXED":
                 if bug_data['id'] not in fixed_bugs_by_date[date_label]:
-                    fixed_bugs_by_date[date_label][bug_data['id']] = team
+                    fixed_bugs_by_date[date_label][bug_data['id']] = {
+                        "team": team,
+                        "os": bug_states["op_sys"]["new"],
+                    }
 
     teams = set()
 
@@ -94,6 +100,7 @@ def get_bugs(time_intervals):
               'resolution',
               'severity',
               'creation_time',
+              'op_sys',
               'history',
              ]
 
@@ -159,11 +166,35 @@ def get_bugs(time_intervals):
         for team in teams:
             open_bugs_for_day_by_team[team] = []
         open_bugs = bugs_for_single_day_dict[date]
-        for bug_id, team in open_bugs.items():
+        for bug_id, bug_data in open_bugs.items():
+            team = bug_data["team"]
             open_bugs_for_day_by_team[team].append(bug_id)
         open_bugs_by_day_and_team.append({
             "date": date,
             "teams": open_bugs_for_day_by_team
+        })
+
+    operating_systems = ('All', 'Linux', 'macOS', 'Windows', 'Android', 'Other/Unknown')
+    open_bugs_by_day_and_os = []
+    bugs_by_date_list = sorted([{key: value} for key, value in bugs_by_date.items()], key = lambda item: list(item.keys())[0])
+    for bugs_for_single_day_dict in bugs_by_date_list:
+        date = list(bugs_for_single_day_dict.keys())[0]
+        open_bugs_for_day_by_os = {}
+        for operating_system in operating_systems:
+            open_bugs_for_day_by_os[operating_system] = []
+        open_bugs = bugs_for_single_day_dict[date]
+        for bug_id, bug_data in open_bugs.items():
+            operating_system = bug_data["os"]
+            if operating_system.startswith('Windows'):
+                operating_system = 'Windows'
+            elif operating_system.startswith('Unspecified'):
+                operating_system = 'All'
+            if operating_system not in operating_systems:
+                operating_system = 'Other/Unknown'
+            open_bugs_for_day_by_os[operating_system].append(bug_id)
+        open_bugs_by_day_and_os.append({
+            "date": date,
+            "os": open_bugs_for_day_by_os
         })
 
     fixed_bug_count_by_day = []
@@ -172,9 +203,9 @@ def get_bugs(time_intervals):
         key = list(bugs_for_single_day_dict.keys())[0]
         fixed_bug_count_by_day.append({key: bugs_for_single_day_dict[key]})
 
-    return open_bugs_by_day_and_team, fixed_bug_count_by_day
+    return open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day
 
-def write_csv(open_bugs_by_day_and_team, fixed_bug_count_by_day):
+def write_csv(open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day):
     with open('data/core_s2_open_unrestricted_creation_date.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
@@ -198,6 +229,26 @@ def write_csv(open_bugs_by_day_and_team, fixed_bug_count_by_day):
 
         row = ['fixed'] + [len(list(day_data.values())[0]) for day_data in fixed_bug_count_by_day]
         writer.writerow(row)
+
+        writer.writerow([])
+
+        row = ['date'] + [day_data["date"] for day_data in open_bugs_by_day_and_os]
+        writer.writerow(row)
+
+        operating_systems = open_bugs_by_day_and_os[0]["os"].keys()
+        for operating_system in operating_systems:
+            row = [operating_system] + [len(day_data["os"][operating_system]) for day_data in open_bugs_by_day_and_os]
+            writer.writerow(row)
+
+        writer.writerow([])
+
+        row = ['date'] + [day_data["date"] for day_data in open_bugs_by_day_and_os]
+        writer.writerow(row)
+
+        teams = sorted(open_bugs_by_day_and_os[0]["os"].keys())
+        for operating_system in operating_systems:
+            row = [operating_system] + [BUG_LIST_WEB_URL + ",".join(list(map(str, sorted(day_data["os"][operating_system])))) for day_data in open_bugs_by_day_and_os]
+            writer.writerow(row)
 
         writer.writerow([])
 
@@ -237,6 +288,6 @@ while from_day < day_max:
     from_day += datetime.timedelta(7)
 # time_intervals.reverse()
 
-open_bugs_by_day_and_team, fixed_bug_count_by_day = get_bugs(time_intervals)
-write_csv(open_bugs_by_day_and_team, fixed_bug_count_by_day)
+open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day = get_bugs(time_intervals)
+write_csv(open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day)
 
