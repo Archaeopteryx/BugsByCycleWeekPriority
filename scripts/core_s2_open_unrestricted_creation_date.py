@@ -174,7 +174,7 @@ def get_bugs(time_intervals):
             "teams": open_bugs_for_day_by_team
         })
 
-    operating_systems = ('All', 'Linux', 'macOS', 'Windows', 'Android', 'Other/Unknown')
+    operating_systems = ('All OS', 'Linux', 'macOS', 'Windows', 'Android', 'Other/Unknown')
     open_bugs_by_day_and_os = []
     bugs_by_date_list = sorted([{key: value} for key, value in bugs_by_date.items()], key = lambda item: list(item.keys())[0])
     for bugs_for_single_day_dict in bugs_by_date_list:
@@ -189,6 +189,8 @@ def get_bugs(time_intervals):
                 operating_system = 'Windows'
             elif operating_system.startswith('Unspecified'):
                 operating_system = 'All'
+            if operating_system.startswith('All'):
+                operating_system = 'All OS'
             if operating_system not in operating_systems:
                 operating_system = 'Other/Unknown'
             open_bugs_for_day_by_os[operating_system].append(bug_id)
