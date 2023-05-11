@@ -536,11 +536,17 @@ def get_closed_but_not_fixed(label, start_date, end_date):
 def get_moved_to(label, start_date, end_date):
 
     def bug_handler(bug_data):
+        if start_date == '2023-04-30':
+            print("found bug {bug_data['id']}")
+        if start_date == '2023-04-30' and bug_data['id'] == 1828299:
+            print("found bug 1828299 for week")
         if bug_data['id'] in [data['id'] for data in bugs_data]:
             return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= start_date:
             return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
+        if start_date == '2023-04-30' and bug_data['id'] == 1828299:
+            print(bug_states)
         if bug_states["status"]["old"] not in STATUS_OPEN and bug_states["status"]["new"] not in STATUS_OPEN:
             return
         if bug_states["severity"]["new"] not in SEVERITIES:
@@ -558,6 +564,9 @@ def get_moved_to(label, start_date, end_date):
                 'moved_to',
             ])
 
+
+    print("start_date")
+    print(start_date)
 
     bugs_data = []
 
@@ -597,17 +606,31 @@ def get_moved_to(label, start_date, end_date):
             'f19': 'OP',
             # The search doesn't supported grouping 'changedafter' and changedbefore'
             # for 'product'.
-            'j19': 'AND',
+            'j19': 'OR',
+            'f20': 'OP',
+            # The search doesn't supported grouping 'changedafter' and changedbefore'
+            # for 'product'.
+            'j20': 'AND',
             'f21': 'product',
             'o21': 'changedafter',
             'f22': 'product',
             'o22': 'changedbefore',
             'f23': 'CP',
+            'f24': 'OP',
+            'j24': 'AND',
+            'f25': 'component',
+            'o25': 'changedafter',
+            'f26': 'component',
+            'o26': 'changedbefore',
+            'f27': 'CP',
+            'f28': 'CP',
         }
 
         params['v6'] = end_date
         params['v21'] = start_date
         params['v22'] = end_date
+        params['v25'] = start_date
+        params['v26'] = end_date
 
         Bugzilla(params,
                  bughandler=bug_handler,
