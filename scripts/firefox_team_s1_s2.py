@@ -999,6 +999,28 @@ def measure_data(time_intervals):
             data_by_time_intervals[pos]['data'][condition_name] = data_time_interval_condition
         pos += 1
 
+    conditions = [
+        {
+          'name': 'access-s1',
+          'values': ['s1'],
+          'operator_bz': 'equals',
+          'operator_py': lambda values, accessibility_severity: any([value.lower() in accessibility_severity.lower() for value in values]),
+        },
+        {
+          'name': 'access-s2',
+          'values': ['s2'],
+          'operator_bz': 'equals',
+          'operator_py': lambda values, accessibility_severity: any([value.lower() in accessibility_severity.lower() for value in values]),
+        },
+    ]
+    field = { 'query_name': 'cf_accessibility_severity', 'data_name': 'cf_accessibility_severity' }
+    data_multiple_conditions = get_bugs_multiple_time_intervals(time_intervals, field, conditions)
+    pos = 0
+    for label, data_time_interval in data_multiple_conditions.items():
+        for condition_name, data_time_interval_condition in data_time_interval.items():
+            data_by_time_intervals[pos]['data'][condition_name] += data_time_interval_condition
+        pos += 1
+
     return data_by_time_intervals
 
 def write_csv(data_by_time_intervals, open_blocked_ux_bugs, bugs_table):
