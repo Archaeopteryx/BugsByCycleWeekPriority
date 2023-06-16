@@ -15,6 +15,8 @@ import productdates
 import pytz
 import urllib.request
 
+from config.firefox_team import PRODUCTS_TO_CHECK, PRODUCTS_COMPONENTS_TO_CHECK
+
 import logging
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
@@ -24,53 +26,6 @@ requests_log.propagate = True
 
 BUG_LIST_WEB_URL = 'https://bugzilla.mozilla.org/buglist.cgi?bug_id_type=anyexact&list_id=15921940&query_format=advanced&bug_id='
 BUGZILLA_CONFIG_URL = 'https://bugzilla.mozilla.org/rest/configuration'
-
-PRODUCTS_TO_CHECK = [
-    'Core',
-#    'DevTools',
-    'Firefox',
-#    'Firefox Build System',
-#    'Testing',
-    'Toolkit',
-#    'WebExtensions',
-]
-
-PRODUCTS_COMPONENTS_TO_CHECK = [
-    ['Core', 'Window Management'],
-    ['Core', 'XUL'],
-    ['Firefox', 'about:logins'],
-    ['Firefox', 'Address Bar'],
-    ['Firefox', 'Bookmarks & History'],
-    ['Firefox', 'Downloads Panel'],
-    ['Firefox', 'File Handling'],
-    ['Firefox', 'General'],
-    ['Firefox', 'Keyboard Navigation'],
-    ['Firefox', 'Menus'],
-    ['Firefox', 'Migration'],
-    ['Firefox', 'New Tab Page'],
-    ['Firefox', 'Preferences'],
-    ['Firefox', 'Protections UI'],
-    ['Firefox', 'Screenshots'],
-    ['Firefox', 'Search'],
-    ['Firefox', 'Session Restore'],
-    ['Firefox', 'Site Identity'],
-    ['Firefox', 'Site Permissions'],
-    ['Firefox', 'Tabbed Browser'],
-    ['Firefox', 'Theme'],
-    ['Firefox', 'Toolbars and Customization'],
-    ['Firefox', 'Top Sites'],
-    ['Firefox', 'Tours'],
-    ['Toolkit', 'Downloads API'],
-    ['Toolkit', 'General'],
-    ['Toolkit', 'Notifications and Alerts'],
-    ['Toolkit', 'Picture-in-Picture'],
-    ['Toolkit', 'Preferences'],
-    ['Toolkit', 'Printing'],
-    ['Toolkit', 'Reader Mode'],
-    ['Toolkit', 'Toolbars and Toolbar Customization'],
-    ['Toolkit', 'Video/Audio Controls'],
-    ['Toolkit', 'XUL Widgets'],
-]
 
 SEVERITIES = ['S1', 'S2']
 
