@@ -37,6 +37,7 @@ PRODUCTS_COMPONENTS_TO_CHECK = [
     ['Firefox', 'Top Sites'],
     ['Firefox', 'Tours'],
     ['Firefox', 'View'],
+    ['Toolkit', 'Alerts Service'],
     ['Toolkit', 'Content Prompts'],
     ['Toolkit', 'Downloads API'],
     ['Toolkit', 'General'],
