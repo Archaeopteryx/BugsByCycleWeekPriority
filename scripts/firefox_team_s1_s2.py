@@ -127,9 +127,6 @@ def get_created(label, start_date, end_date):
     params = {
         'include_fields': fields,
         'product': PRODUCTS_TO_CHECK,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
         'f2': 'keywords',
         'o2': 'nowords',
         'v2': 'crash',
@@ -220,9 +217,6 @@ def get_increased(label, start_date, end_date):
         params = {
             'include_fields': fields,
             'product': PRODUCTS_TO_CHECK,
-            'f1': 'bug_group',
-            'o1': 'notsubstring',
-            'v1': 'security',
             'f2': 'keywords',
             'o2': 'nowords',
             'v2': 'crash',
@@ -297,9 +291,6 @@ def get_lowered(label, start_date, end_date):
         params = {
             'include_fields': fields,
             'product': PRODUCTS_TO_CHECK,
-            'f1': 'bug_group',
-            'o1': 'notsubstring',
-            'v1': 'security',
             'f2': 'keywords',
             'o2': 'nowords',
             'v2': 'crash',
@@ -365,9 +356,6 @@ def get_fixed(label, start_date, end_date):
         params = {
             'include_fields': fields,
             'product': PRODUCTS_TO_CHECK,
-            'f1': 'bug_group',
-            'o1': 'notsubstring',
-            'v1': 'security',
             'f2': 'keywords',
             'o2': 'nowords',
             'v2': 'crash',
@@ -449,9 +437,6 @@ def get_closed_but_not_fixed(label, start_date, end_date):
         params = {
             'include_fields': fields,
             'product': PRODUCTS_TO_CHECK,
-            'f1': 'bug_group',
-            'o1': 'notsubstring',
-            'v1': 'security',
             'f2': 'keywords',
             'o2': 'nowords',
             'v2': 'crash',
@@ -538,9 +523,6 @@ def get_moved_to(label, start_date, end_date):
     for severity in SEVERITIES:
         params = {
             'include_fields': fields,
-            'f1': 'bug_group',
-            'o1': 'notsubstring',
-            'v1': 'security',
             'f2': 'keywords',
             'o2': 'nowords',
             'v2': 'crash',
@@ -636,9 +618,6 @@ def get_moved_away(label, start_date, end_date):
     for severity in SEVERITIES:
         params = {
             'include_fields': fields,
-            'f1': 'bug_group',
-            'o1': 'notsubstring',
-            'v1': 'security',
             'f2': 'keywords',
             'o2': 'nowords',
             'v2': 'crash',
@@ -720,9 +699,6 @@ def get_open(label, start_date, end_date):
     for severity in SEVERITIES:
         params = {
             'include_fields': fields,
-            'f1': 'bug_group',
-            'o1': 'notsubstring',
-            'v1': 'security',
             'f2': 'keywords',
             'o2': 'nowords',
             'v2': 'crash',
@@ -745,9 +721,6 @@ def get_open(label, start_date, end_date):
     params = {
         'include_fields': fields,
         'severity': SEVERITIES,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
         'f2': 'keywords',
         'o2': 'nowords',
         'v2': 'crash',
@@ -766,9 +739,6 @@ def get_open(label, start_date, end_date):
         'product': PRODUCTS_TO_CHECK,
         'bug_status': STATUS_OPEN,
         'severity': SEVERITIES,
-        'f1': 'bug_group',
-        'o1': 'notsubstring',
-        'v1': 'security',
         'f2': 'keywords',
         'o2': 'nowords',
         'v2': 'crash',
