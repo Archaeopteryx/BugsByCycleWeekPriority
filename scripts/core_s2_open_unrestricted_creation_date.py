@@ -47,6 +47,7 @@ TEAMS_IGNORED = [
 ]
 
 MEASURE_START = '2023-01-01'
+STALLED_BUGS_EXCLUDED_AFTER = '2023-08-01'
 # BUG_CREATION_BEFORE = '2022-07-01'
 
 def get_bugs(time_intervals):
@@ -60,10 +61,12 @@ def get_bugs(time_intervals):
             date_label = time_interval['label']
             if creation_time >= end_date:
                 continue
-            bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status", "resolution", "op_sys"], start_date, end_date)
+            bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status", "resolution", "op_sys", "keywords"], start_date, end_date)
             if bug_states["severity"]["new"] not in SEVERITIES:
                 continue
             if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
+                continue
+            if end_date > STALLED_BUGS_EXCLUDED_AFTER_DATE and "stalled" in bug_states["keywords"]["new"]:
                 continue
             team = get_component_to_team(bug_states["product"]["new"], bug_states["component"]["new"]) or "Unknown"
             if team in TEAMS_IGNORED:
@@ -85,6 +88,8 @@ def get_bugs(time_intervals):
 
     teams = set()
 
+    STALLED_BUGS_EXCLUDED_AFTER_DATE = datetime.datetime.strptime(STALLED_BUGS_EXCLUDED_AFTER, '%Y-%m-%d').date()
+
     bugs_by_date = {}
     fixed_bugs_by_date = {}
     for data_series in [bugs_by_date, fixed_bugs_by_date]:
@@ -101,6 +106,7 @@ def get_bugs(time_intervals):
               'severity',
               'creation_time',
               'op_sys',
+              'keywords',
               'history',
              ]
 
