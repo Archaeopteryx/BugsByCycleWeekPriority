@@ -91,10 +91,14 @@ def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
                     if bug_states[field]["new"] is None:
                         bug_states[field]["new"] = change['removed']
     for field in fields:
+        if field in bug_data:
+            current_value = bug_data[field]
+        else:
+            current_value = '---'
         if bug_states[field]["old"] is None:
-            bug_states[field]["old"] = bug_data[field]
+            bug_states[field]["old"] = current_value
         if bug_states[field]["new"] is None:
-            bug_states[field]["new"] = bug_data[field]
+            bug_states[field]["new"] = current_value
     return bug_states
 
 def get_created(label, start_date, end_date):
@@ -821,6 +825,9 @@ def get_bugs_multiple_time_intervals(time_intervals, field, conditions):
                 continue
             if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= end_date:
                 continue
+            print(bug_data["id"])
+            print(bug_data)
+            print(bug_data["id"])
             bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "status"] + [field['data_name']], start_date, end_date)
             if not condition['operator_py'](condition['values'], bug_states[field['data_name']]["new"]):
                 continue
