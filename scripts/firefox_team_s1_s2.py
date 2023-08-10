@@ -480,17 +480,11 @@ def get_closed_but_not_fixed(label, start_date, end_date):
 def get_moved_to(label, start_date, end_date):
 
     def bug_handler(bug_data):
-        if start_date == '2023-04-30':
-            print("found bug {bug_data['id']}")
-        if start_date == '2023-04-30' and bug_data['id'] == 1828299:
-            print("found bug 1828299 for week")
         if bug_data['id'] in [data['id'] for data in bugs_data]:
             return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= start_date:
             return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
-        if start_date == '2023-04-30' and bug_data['id'] == 1828299:
-            print(bug_states)
         if bug_states["status"]["old"] not in STATUS_OPEN and bug_states["status"]["new"] not in STATUS_OPEN:
             return
         if bug_states["severity"]["new"] not in SEVERITIES:
@@ -508,9 +502,6 @@ def get_moved_to(label, start_date, end_date):
                 'moved_to',
             ])
 
-
-    print("start_date")
-    print(start_date)
 
     bugs_data = []
 
@@ -825,9 +816,6 @@ def get_bugs_multiple_time_intervals(time_intervals, field, conditions):
                 continue
             if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= end_date:
                 continue
-            print(bug_data["id"])
-            print(bug_data)
-            print(bug_data["id"])
             bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "status"] + [field['data_name']], start_date, end_date)
             if not condition['operator_py'](condition['values'], bug_states[field['data_name']]["new"]):
                 continue
