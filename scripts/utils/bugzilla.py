@@ -2,16 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-# This scripts generates a report of bugs which
-# * have the severity S1 or S2
-
 import datetime
 import json
 import pytz
+import re
 import urllib.request
 import sys
 
 BUGZILLA_CONFIG_URL = 'https://bugzilla.mozilla.org/rest/configuration'
+BUGZILLA_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 BUG_LIST_WEB_URL = 'https://bugzilla.mozilla.org/buglist.cgi?bug_id_type=anyexact&query_format=advanced&bug_id='
 
 COMPONENT_TO_TEAM_MAP = None
@@ -53,6 +52,42 @@ def get_field_type(field_name, field_value):
     if field_type not in [list, str]:
         sys.exit(f"Unsupported field type '{field_type}'")
     FIELDS_TYPES_MAP[field_name] = field_type
+
+
+def get_needinfo_histories(bug_data):
+    needinfo_histories = {}
+    for historyItem in bug_data['history']:
+        for change in historyItem['changes']:
+            field = change['field_name']
+            if field != 'flagtypes.name':
+                continue
+            if not change['added'].startswith('needinfo?') and not change['removed'].startswith('needinfo?'):
+                continue
+            if change['removed'].startswith('needinfo?'):
+                match = re.search('(?<=needinfo\?\()[^)]*(?=\))', change['removed'])
+                if match:
+                    user_needinfoed = match.group(0)
+                    needinfo_end = parse_time(historyItem['when'], BUGZILLA_DATETIME_FORMAT)
+                    if user_needinfoed in needinfo_histories.keys():
+                        # Even when a bug gets created and the needinfo flag used
+                        # during the creation, it will be recorded as change after
+                        # the bug got created.
+                        if needinfo_histories[user_needinfoed][-1]['end'] is None:
+                            needinfo_histories[user_needinfoed][-1]['end'] = needinfo_end
+            if change['added'].startswith('needinfo?'):
+                users_needinfoed = re.findall('(?<=needinfo\?\()[^)]*(?=\))', change['added'])
+                for user_needinfoed in users_needinfoed:
+                    needinfo_start = parse_time(historyItem['when'], BUGZILLA_DATETIME_FORMAT)
+                    if user_needinfoed not in needinfo_histories.keys():
+                        needinfo_histories[user_needinfoed] = []
+                    if len(needinfo_histories[user_needinfoed]) == 0 or needinfo_histories[user_needinfoed][-1]['end']:
+                        needinfo_histories[user_needinfoed].append({
+                            'start': needinfo_start,
+                            'end': None,
+                            'requester': historyItem['who'],
+                            'requestee': user_needinfoed,
+                        })
+    return needinfo_histories
 
 
 def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
@@ -110,6 +145,11 @@ def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
         if bug_states[field]["new"] is None:
             bug_states[field]["new"] = bug_data[field]
     return bug_states
+
+
+def parse_time(string, format_string):
+    change_time = datetime.datetime.strptime(string, format_string)
+    return pytz.utc.localize(change_time)
 
 
 def items_str_to_list(items_str):
