@@ -28,26 +28,25 @@ PRODUCTS_TO_CHECK = [
     'Core',
     'DevTools',
     'Firefox',
-    'Toolkit',
+    'Web Compatibility',
+]
+
+PRODUCTS_COMPONENTS_TO_INCLUDE = [
+    { 'product': 'Fenix', 'component': 'Browser Engine', },
+    { 'product': 'Toolkit', 'component': 'Content Prompts', },
+    { 'product': 'Toolkit', 'component': 'Video/Audio Controls', },
+]
+
+PRODUCTS_COMPONENTS_TO_EXCLUDE = [
+    { 'product': 'Firefox', 'component': 'Messaging System', },
+    { 'product': 'Firefox', 'component': 'New Tab Page', },
 ]
 
 SEVERITIES = ['s1', 'S1', 's2', 'S2']
 
 STATUS_OPEN = ['UNCONFIRMED', 'NEW', 'ASSIGNED', 'REOPENED']
 
-TEAMS_IGNORED = [
-  'Credential Management',
-  'Desktop Integrations',
-  'Frontend',
-  'Pocket and User Journey',
-  'Search and New Tab',
-  'Services',
-  'Telemetry',
-  'Web Extensions',
-]
-
 MEASURE_START = '2024-01-01'
-# BUG_CREATION_BEFORE = '2022-07-01'
 
 def get_bugs(time_intervals):
 
@@ -64,14 +63,24 @@ def get_bugs(time_intervals):
             if bug_states["cf_accessibility_severity"]["new"] not in SEVERITIES:
                 continue
             if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
-                continue
+                is_component_to_include = False
+                for product_component_to_check in PRODUCTS_COMPONENTS_TO_INCLUDE:
+                    if product_component_to_check["product"] == bug_states["product"]["new"] and product_component_to_check['component'] == bug_states["component"]["new"]:
+                        is_component_to_include = True
+                if not is_component_to_include:
+                    continue
+            else:
+                is_component_to_include = True
+                for product_component_to_check in PRODUCTS_COMPONENTS_TO_EXCLUDE:
+                    if product_component_to_check["product"] == bug_states["product"]["new"] and product_component_to_check['component'] == bug_states["component"]["new"]:
+                        is_component_to_include = False
+                if not is_component_to_include:
+                    continue
             if "stalled" in bug_states["keywords"]["new"]:
                 continue
             if set(["meta", "sec-high", "sec-critical"]) & set(bug_states["keywords"]["new"]):
                 continue
             team = get_component_to_team(bug_states["product"]["new"], bug_states["component"]["new"]) or "Unknown"
-            if team in TEAMS_IGNORED:
-                continue
             if team not in teams:
                 teams.add(team)
             if bug_states["status"]["new"] in STATUS_OPEN:
@@ -117,9 +126,6 @@ def get_bugs(time_intervals):
         'f2': 'bug_status',
         'o2': 'anyexact',
         'v2': STATUS_OPEN,
-        # 'f3': 'creation_ts',
-        # 'o3': 'lessthan',
-        # 'v3': BUG_CREATION_BEFORE,
     }
 
     Bugzilla(params,
@@ -134,9 +140,6 @@ def get_bugs(time_intervals):
         'f2': 'delta_ts',
         'o2': 'greaterthan',
         'v2': MEASURE_START,
-        # 'f3': 'creation_ts',
-        # 'o3': 'lessthan',
-        # 'v3': BUG_CREATION_BEFORE,
     }
 
     Bugzilla(params,
@@ -153,9 +156,6 @@ def get_bugs(time_intervals):
             'f2': 'cf_accessibility_severity',
             'o2': 'changedafter',
             'v2': MEASURE_START,
-            # 'f3': 'creation_ts',
-            # 'o3': 'lessthan',
-            # 'v3': BUG_CREATION_BEFORE,
         }
 
         Bugzilla(params,
