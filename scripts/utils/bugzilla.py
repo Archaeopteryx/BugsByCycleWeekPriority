@@ -64,9 +64,8 @@ def get_needinfo_histories(bug_data):
             if not change['added'].startswith('needinfo?') and not change['removed'].startswith('needinfo?'):
                 continue
             if change['removed'].startswith('needinfo?'):
-                match = re.search('(?<=needinfo\?\()[^)]*(?=\))', change['removed'])
-                if match:
-                    user_needinfoed = match.group(0)
+                users_needinfoed = re.findall('(?<=needinfo\?\()[^)]*(?=\))', change['removed'])
+                for user_needinfoed in users_needinfoed:
                     needinfo_end = parse_time(historyItem['when'], BUGZILLA_DATETIME_FORMAT)
                     if user_needinfoed in needinfo_histories.keys():
                         # Even when a bug gets created and the needinfo flag used
