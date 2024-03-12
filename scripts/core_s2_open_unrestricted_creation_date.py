@@ -46,9 +46,7 @@ TEAMS_IGNORED = [
   'Web Extensions',
 ]
 
-MEASURE_START = '2023-01-01'
-STALLED_BUGS_EXCLUDED_AFTER = '2023-08-01'
-# BUG_CREATION_BEFORE = '2022-07-01'
+MEASURE_START = '2024-01-01'
 
 def get_bugs(time_intervals):
 
@@ -66,7 +64,7 @@ def get_bugs(time_intervals):
                 continue
             if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
                 continue
-            if end_date > STALLED_BUGS_EXCLUDED_AFTER_DATE and "stalled" in bug_states["keywords"]["new"]:
+            if "stalled" in bug_states["keywords"]["new"]:
                 continue
             if set(["meta", "sec-high", "sec-critical"]) & set(bug_states["keywords"]["new"]):
                 continue
@@ -90,8 +88,6 @@ def get_bugs(time_intervals):
 
     teams = set()
 
-    STALLED_BUGS_EXCLUDED_AFTER_DATE = datetime.datetime.strptime(STALLED_BUGS_EXCLUDED_AFTER, '%Y-%m-%d').date()
-
     bugs_by_date = {}
     fixed_bugs_by_date = {}
     for data_series in [bugs_by_date, fixed_bugs_by_date]:
@@ -114,15 +110,13 @@ def get_bugs(time_intervals):
 
     params = {
         'include_fields': fields,
+        'bug_type': 'defect',
         'f1': 'bug_severity',
         'o1': 'anyexact',
         'v1': SEVERITIES,
         'f2': 'bug_status',
         'o2': 'anyexact',
         'v2': STATUS_OPEN,
-        # 'f3': 'creation_ts',
-        # 'o3': 'lessthan',
-        # 'v3': BUG_CREATION_BEFORE,
     }
 
     Bugzilla(params,
@@ -131,15 +125,13 @@ def get_bugs(time_intervals):
 
     params = {
         'include_fields': fields,
+        'bug_type': 'defect',
         'f1': 'bug_severity',
         'o1': 'anyexact',
         'v1': SEVERITIES,
         'f2': 'delta_ts',
         'o2': 'greaterthan',
         'v2': MEASURE_START,
-        # 'f3': 'creation_ts',
-        # 'o3': 'lessthan',
-        # 'v3': BUG_CREATION_BEFORE,
     }
 
     Bugzilla(params,
@@ -149,6 +141,7 @@ def get_bugs(time_intervals):
     for severity in SEVERITIES:
         params = {
             'include_fields': fields,
+            'bug_type': 'defect',
             'j_top': 'AND_G',
             'f1': 'bug_severity',
             'o1': 'changedfrom',
@@ -156,9 +149,6 @@ def get_bugs(time_intervals):
             'f2': 'bug_severity',
             'o2': 'changedafter',
             'v2': MEASURE_START,
-            # 'f3': 'creation_ts',
-            # 'o3': 'lessthan',
-            # 'v3': BUG_CREATION_BEFORE,
         }
 
         Bugzilla(params,
@@ -296,7 +286,6 @@ while from_day < day_max:
         'label': to_day.date().isoformat(),
     })
     from_day += datetime.timedelta(7)
-# time_intervals.reverse()
 
 open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day = get_bugs(time_intervals)
 write_csv(open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day)
