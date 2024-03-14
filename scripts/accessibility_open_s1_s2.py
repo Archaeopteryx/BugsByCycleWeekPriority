@@ -38,8 +38,13 @@ PRODUCTS_COMPONENTS_TO_INCLUDE = [
 ]
 
 PRODUCTS_COMPONENTS_TO_EXCLUDE = [
+    { 'product': 'Firefox', 'component': 'Address Bar', },
     { 'product': 'Firefox', 'component': 'Messaging System', },
     { 'product': 'Firefox', 'component': 'New Tab Page', },
+    { 'product': 'Firefox', 'component': 'Screenshots', },
+    { 'product': 'Firefox', 'component': 'Search', },
+    { 'product': 'Firefox', 'component': 'Settings UI', },
+    { 'product': 'Firefox', 'component': 'Toolbars and Customization', },
 ]
 
 SEVERITIES = ['s1', 'S1', 's2', 'S2']
@@ -88,6 +93,7 @@ def get_bugs(time_intervals):
                     bugs_by_date[date_label][bug_data['id']] = {
                         "team": team,
                         "os": bug_states["op_sys"]["new"],
+                        "cf_accessibility_severity": bug_states["cf_accessibility_severity"]["new"],
                     }
             if bug_states["status"]["old"] in STATUS_OPEN and bug_states["resolution"]["new"] == "FIXED":
                 if bug_data['id'] not in fixed_bugs_by_date[date_label]:
@@ -179,6 +185,20 @@ def get_bugs(time_intervals):
             "teams": open_bugs_for_day_by_team
         })
 
+    open_s1_bugs_by_day = []
+    bugs_by_date_list = sorted([{key: value} for key, value in bugs_by_date.items()], key = lambda item: list(item.keys())[0])
+    for bugs_for_single_day_dict in bugs_by_date_list:
+        date = list(bugs_for_single_day_dict.keys())[0]
+        open_bugs_for_day = []
+        open_bugs = bugs_for_single_day_dict[date]
+        for bug_id, bug_data in open_bugs.items():
+            if bug_data["cf_accessibility_severity"] == "s1":
+                open_bugs_for_day.append(bug_id)
+        open_s1_bugs_by_day.append({
+            "date": date,
+            "bugs": open_bugs_for_day
+        })
+
     operating_systems = ('All OS', 'Linux', 'macOS', 'Windows', 'Android', 'Other/Unknown')
     open_bugs_by_day_and_os = []
     bugs_by_date_list = sorted([{key: value} for key, value in bugs_by_date.items()], key = lambda item: list(item.keys())[0])
@@ -210,9 +230,9 @@ def get_bugs(time_intervals):
         key = list(bugs_for_single_day_dict.keys())[0]
         fixed_bug_count_by_day.append({key: bugs_for_single_day_dict[key]})
 
-    return open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day
+    return open_bugs_by_day_and_team, open_s1_bugs_by_day, open_bugs_by_day_and_os, fixed_bug_count_by_day
 
-def write_csv(open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day):
+def write_csv(open_bugs_by_day_and_team, open_s1_bugs_by_day, open_bugs_by_day_and_os, fixed_bug_count_by_day):
     with open('data/accessibility_open_s1_s2.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
@@ -232,6 +252,15 @@ def write_csv(open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_coun
             for bugs_for_team in day_data["teams"].values():
                 bugs.extend(bugs_for_team)
             row.append(BUG_LIST_WEB_URL + ",".join(list(map(str, sorted(bugs)))))
+        writer.writerow(row)
+
+        row = ['open s1']
+        for bugs_for_day in open_s1_bugs_by_day:
+            row.append(len(bugs_for_day["bugs"]))
+        writer.writerow(row)
+        row = ['bugs s1']
+        for bugs_for_day in open_s1_bugs_by_day:
+            row.append(BUG_LIST_WEB_URL + ",".join(list(map(str, sorted(bugs_for_day["bugs"])))))
         writer.writerow(row)
 
         row = ['fixed'] + [len(list(day_data.values())[0]) for day_data in fixed_bug_count_by_day]
@@ -295,6 +324,6 @@ while from_day < day_max:
     from_day += datetime.timedelta(7)
 # time_intervals.reverse()
 
-open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day = get_bugs(time_intervals)
-write_csv(open_bugs_by_day_and_team, open_bugs_by_day_and_os, fixed_bug_count_by_day)
+open_bugs_by_day_and_team, open_s1_bugs_by_day, open_bugs_by_day_and_os, fixed_bug_count_by_day = get_bugs(time_intervals)
+write_csv(open_bugs_by_day_and_team, open_s1_bugs_by_day, open_bugs_by_day_and_os, fixed_bug_count_by_day)
 
