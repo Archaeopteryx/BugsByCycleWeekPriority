@@ -39,6 +39,7 @@ PRODUCTS_COMPONENTS_TO_INCLUDE = [
 
 PRODUCTS_COMPONENTS_TO_EXCLUDE = [
     { 'product': 'Firefox', 'component': 'Address Bar', },
+    { 'product': 'Firefox', 'component': 'Firefox View', },
     { 'product': 'Firefox', 'component': 'Messaging System', },
     { 'product': 'Firefox', 'component': 'New Tab Page', },
     { 'product': 'Firefox', 'component': 'Screenshots', },
