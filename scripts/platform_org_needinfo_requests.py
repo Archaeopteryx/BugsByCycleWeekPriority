@@ -30,8 +30,11 @@ TEAMS_IGNORED = [
   'Credential Management',
   'Desktop Integrations',
   'Frontend',
+  'New Tab Page',
+  'Onboarding, Messaging, and Communication',
   'Pocket and User Journey',
   'Search and New Tab',
+  'Search Next Generation',
   'Services',
   'Telemetry',
   'Web Extensions',
@@ -60,7 +63,17 @@ def filter_data_by_employee_status(needinfos_open_by_user, employees):
                 needinfos_open_by_team[team] = []
             needinfos_open_by_team[team].append(bug_data)
 
-    return needinfos_open_by_employee, needinfos_open_by_component, needinfos_open_by_team
+    needinfos_open_by_team_and_employee = {}
+    for needinfoed_employee in needinfos_open_by_employee.keys():
+        for bug_data in needinfos_open_by_employee[needinfoed_employee]:
+            team = bug_data['team']
+            if team not in needinfos_open_by_team_and_employee:
+                needinfos_open_by_team_and_employee[team] = {}
+            if needinfoed_employee not in needinfos_open_by_team_and_employee[team]:
+                needinfos_open_by_team_and_employee[team][needinfoed_employee] = []
+            needinfos_open_by_team_and_employee[team][needinfoed_employee].append(bug_data)
+
+    return needinfos_open_by_employee, needinfos_open_by_component, needinfos_open_by_team, needinfos_open_by_team_and_employee
 
 
 def get_bugs():
@@ -154,6 +167,7 @@ def get_employees(user_names):
             return
         groups = [group['name'] for group in user_data['groups']]
         if 'mozilla-employee-confidential' in groups:
+            print(f"email: {user_data['email']} ldap email: {user_data['ldap_email'] if 'ldap_email' in user_data else None}")
             employees.append(user_data['email'])
                 
     def fault_user_handler(fault_data):
@@ -174,7 +188,7 @@ def get_employees(user_names):
         new_search_string_part += "names=" + user_name
         if len(user_search_string + new_search_string_part) > QUERY_STRING_LIMIT:
             BugzillaUser(user_names=users_to_search,
-                         include_fields=['can_login', 'email', 'groups'],
+                         include_fields=['can_login', 'email', 'groups', 'ldap_email'],
                          user_handler=user_handler,
                          fault_user_handler=fault_user_handler,
                          timeout=960).wait()
@@ -191,7 +205,7 @@ def get_employees(user_names):
 
     return employees
 
-def write_csv(needinfos_open_by_employee, needinfos_open_by_component, needinfos_open_by_team):
+def write_csv(needinfos_open_by_employee, needinfos_open_by_component, needinfos_open_by_team, needinfos_open_by_team_and_employee):
     with open('data/platform_org_needinfo_requests.csv', 'w') as Out:
         writer = csv.writer(Out, delimiter=',')
 
@@ -239,9 +253,26 @@ def write_csv(needinfos_open_by_employee, needinfos_open_by_component, needinfos
                 BUG_LIST_WEB_URL + ",".join(sorted(list(set([str(bug_data['bug_id']) for bug_data in needinfos_open_by_team[team]])))),
             ])
 
+        writer.writerow([])
+        writer.writerow([])
+
+        writer.writerow(['Open needinfo requests by team and employee'])
+        writer.writerow([])
+        writer.writerow(['Team', 'Bugzilla email', 'Needinfo count', 'Bugs', 'Bugzilla link'])
+        teams = sorted(needinfos_open_by_team_and_employee.keys(), key=str.lower)
+        for team in teams:
+            employees = sorted(needinfos_open_by_team_and_employee[team].keys(), key=str.lower)
+            for employee in employees:
+                writer.writerow([
+                    team,
+                    employee,
+                    len(needinfos_open_by_team_and_employee[team][employee]),
+                    ','.join(sorted(list(set([str(bug_data['bug_id']) for bug_data in needinfos_open_by_team_and_employee[team][employee]])))),
+                    BUG_LIST_WEB_URL + ",".join(sorted(list(set([str(bug_data['bug_id']) for bug_data in needinfos_open_by_team_and_employee[team][employee]])))),
+                ])
+
 bugs_data = get_bugs()
 needinfos_open_by_user = get_needinfo_data(bugs_data)
 employees = get_employees(needinfos_open_by_user.keys())
-needinfos_open_by_employee, needinfos_open_by_component, needinfos_open_by_team = filter_data_by_employee_status(needinfos_open_by_user, employees)
-write_csv(needinfos_open_by_employee, needinfos_open_by_component, needinfos_open_by_team)
-
+needinfos_open_by_employee, needinfos_open_by_component, needinfos_open_by_team, needinfos_open_by_team_and_employee = filter_data_by_employee_status(needinfos_open_by_user, employees)
+write_csv(needinfos_open_by_employee, needinfos_open_by_component, needinfos_open_by_team, needinfos_open_by_team_and_employee)
