@@ -27,25 +27,18 @@ BUGZILLA_CONFIG_URL = 'https://bugzilla.mozilla.org/rest/configuration'
 PRODUCTS_TO_CHECK = [
     'Core',
     'DevTools',
-    'Firefox',
     'Web Compatibility',
 ]
 
 PRODUCTS_COMPONENTS_TO_INCLUDE = [
     { 'product': 'Fenix', 'component': 'Browser Engine', },
-    { 'product': 'Toolkit', 'component': 'Content Prompts', },
-    { 'product': 'Toolkit', 'component': 'Video/Audio Controls', },
+    { 'product': 'Firefox', 'component': 'Disability Access', },
+    { 'product': 'Firefox', 'component': 'PDF Viewer', },
+    { 'product': 'Firefox', 'component': 'Translations', },
 ]
 
 PRODUCTS_COMPONENTS_TO_EXCLUDE = [
-    { 'product': 'Firefox', 'component': 'Address Bar', },
-    { 'product': 'Firefox', 'component': 'Firefox View', },
-    { 'product': 'Firefox', 'component': 'Messaging System', },
-    { 'product': 'Firefox', 'component': 'New Tab Page', },
-    { 'product': 'Firefox', 'component': 'Screenshots', },
-    { 'product': 'Firefox', 'component': 'Search', },
-    { 'product': 'Firefox', 'component': 'Settings UI', },
-    { 'product': 'Firefox', 'component': 'Toolbars and Customization', },
+    # { 'product': 'Firefox', 'component': 'Address Bar', },
 ]
 
 SEVERITIES = ['s1', 'S1', 's2', 'S2']
