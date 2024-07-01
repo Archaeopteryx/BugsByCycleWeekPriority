@@ -656,8 +656,6 @@ def get_moved_away(label, start_date, end_date):
 def get_open(label, start_date, end_date):
 
     def bug_handler(bug_data):
-        if bug_data['id'] in [data['id'] for data in bugs_data]:
-            return
         if datetime.datetime.strptime(bug_data["creation_time"], '%Y-%m-%dT%H:%M:%SZ').date() >= end_date:
             return
         bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "severity", "status"], start_date, end_date)
@@ -665,9 +663,25 @@ def get_open(label, start_date, end_date):
             return
         if [bug_states["product"]["new"], bug_states["component"]["new"]] not in PRODUCTS_COMPONENTS_TO_CHECK:
             return
+        if bug_states["status"]["old"] not in STATUS_OPEN and bug_states["status"]["new"] in STATUS_OPEN:
+            if bug_data['id'] in [data['id'] for data in reopened_bugs_data]:
+                return
+            reopened_bugs_data.append({
+              'id': bug_data['id'],
+            })
+            bugs_table.append([
+                bug_data['id'],
+                # COMPONENT_TO_TEAM[f"{bug_data['product']} :: {bug_data['component']}"],
+                bug_data['product'],
+                bug_data['component'],
+                label,
+                'reopened',
+            ])
         if bug_states["status"]["new"] not in STATUS_OPEN:
             return
-        bugs_data.append({
+        if bug_data['id'] in [data['id'] for data in open_bugs_data]:
+            return
+        open_bugs_data.append({
           'id': bug_data['id'],
         })
         bugs_table.append([
@@ -679,7 +693,8 @@ def get_open(label, start_date, end_date):
             'open',
         ])
 
-    bugs_data = []
+    open_bugs_data = []
+    reopened_bugs_data = []
 
     fields = [
               'id',
@@ -743,9 +758,10 @@ def get_open(label, start_date, end_date):
              bughandler=bug_handler,
              timeout=960).get_data().wait()
 
-    data = [bug_data['id'] for bug_data in bugs_data]
+    open_data = [open_bug_data['id'] for open_bug_data in open_bugs_data]
+    reopened_data = [reopened_bug_data['id'] for reopened_bug_data in reopened_bugs_data]
 
-    return data
+    return [open_data, reopened_data]
 
 def get_open_blocked_ux(label):
 
@@ -800,7 +816,9 @@ def get_bugs(time_interval):
     data['closed'] = get_closed_but_not_fixed(label, start_date, end_date)
     data['moved_to'] = get_moved_to(label, start_date, end_date)
     data['moved_away'] = get_moved_away(label, start_date, end_date)
-    data['open'] = get_open(label, start_date, end_date)
+    [open_data, reopened_data] = get_open(label, start_date, end_date)
+    data['open'] = open_data
+    data['reopened'] = reopened_data
 
     return data
 
@@ -965,6 +983,7 @@ def write_csv(data_by_time_intervals, open_blocked_ux_bugs, bugs_table):
             {"key": "closed", "value": "S1 or S2 closed but not fixed (e.g. as duplicate)"},
             {"key": "moved_to", "value": "S1 or S2 moved to Firefox Desktop product"},
             {"key": "moved_away", "value": "S1 or S2 moved away from Firefox Desktop product"},
+            {"key": "reopened", "value": "S1 or S2 reopened"},
             {"key": "open", "value": "S1 or S2 open"},
             {"key": "access-s1", "value": "accessibility S1"},
             {"key": "access-s2", "value": "accessibility S2"},
