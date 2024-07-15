@@ -38,7 +38,7 @@ PRODUCTS_COMPONENTS_TO_INCLUDE = [
 ]
 
 PRODUCTS_COMPONENTS_TO_EXCLUDE = [
-    # { 'product': 'Firefox', 'component': 'Address Bar', },
+    { 'product': 'Web Compatibility', 'component': 'Site Reports', },
 ]
 
 SEVERITIES = ['s1', 'S1', 's2', 'S2']
