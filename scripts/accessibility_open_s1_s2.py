@@ -77,6 +77,8 @@ def get_bugs(time_intervals):
                     continue
             if "stalled" in bug_states["keywords"]["new"]:
                 continue
+            if "no-plan-to-ship" in bug_states["keywords"]["new"]:
+                continue
             if set(["meta", "sec-high", "sec-critical"]) & set(bug_states["keywords"]["new"]):
                 continue
             team = get_component_to_team(bug_states["product"]["new"], bug_states["component"]["new"]) or "Unknown"
