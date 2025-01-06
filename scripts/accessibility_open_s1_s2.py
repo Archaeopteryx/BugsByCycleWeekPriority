@@ -31,7 +31,6 @@ PRODUCTS_TO_CHECK = [
 ]
 
 PRODUCTS_COMPONENTS_TO_INCLUDE = [
-    { 'product': 'Fenix', 'component': 'Browser Engine', },
     { 'product': 'Firefox', 'component': 'Disability Access', },
     { 'product': 'Firefox', 'component': 'PDF Viewer', },
     { 'product': 'Firefox', 'component': 'Translations', },
