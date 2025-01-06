@@ -39,6 +39,7 @@ TEAMS_IGNORED = [
   'Credential Management',
   'Desktop Integrations',
   'Frontend',
+  'GAI',
   'New Tab Page',
   'Onboarding, Messaging, and Communication',
   'Pocket and User Journey',
