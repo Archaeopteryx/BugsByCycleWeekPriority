@@ -99,7 +99,8 @@ def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
     for historyItem in bug_data['history']:
         for change in historyItem['changes']:
             field = change['field_name']
-            if field in fields and get_field_type(field, bug_data[field]) == str:
+            current_value = bug_data[field] if field in bug_data else None
+            if field in fields and get_field_type(field, current_value) == str:
                 change_time_str = historyItem['when']
                 change_time = datetime.datetime.strptime(change_time_str, '%Y-%m-%dT%H:%M:%SZ')
                 change_time = pytz.utc.localize(change_time).date()
@@ -121,7 +122,8 @@ def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
         change_time = pytz.utc.localize(change_time).date()
         for change in historyItem['changes']:
             field = change['field_name']
-            if field in fields and get_field_type(field, bug_data[field]) == list:
+            current_value = bug_data[field] if field in bug_data else None
+            if field in fields and get_field_type(field, current_value) == list:
                 if bug_states[field]["new"] is None:
                     # state value is an Array/List, but changes are a singe string
                     bug_states[field]["new"] = set(bug_data[field])
@@ -139,10 +141,11 @@ def get_relevant_bug_changes(bug_data, fields, start_date, end_date):
                     break
 
     for field in fields:
+        current_value = bug_data[field] if field in bug_data else None
         if bug_states[field]["old"] is None:
-            bug_states[field]["old"] = bug_data[field]
+            bug_states[field]["old"] = current_value
         if bug_states[field]["new"] is None:
-            bug_states[field]["new"] = bug_data[field]
+            bug_states[field]["new"] = current_value
     return bug_states
 
 
