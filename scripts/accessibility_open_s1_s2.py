@@ -37,7 +37,8 @@ PRODUCTS_COMPONENTS_TO_INCLUDE = [
 ]
 
 PRODUCTS_COMPONENTS_TO_EXCLUDE = [
-    { 'product': 'Core', 'component': 'Machine Learning', },
+    { 'product': 'Core', 'component': 'Machine Learning: General', },
+    { 'product': 'Core', 'component': 'Machine Learning: Frontend', },
     { 'product': 'Web Compatibility', 'component': 'Site Reports', },
 ]
 
