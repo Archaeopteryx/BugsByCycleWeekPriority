@@ -14,6 +14,7 @@ import pytz
 import urllib.request
 
 from utils.bugzilla import BUG_LIST_WEB_URL, get_component_to_team, get_relevant_bug_changes
+from utils.versions import get_release_versions_for_weeks
 
 import logging
 logging.basicConfig()
@@ -57,9 +58,11 @@ def get_bugs(time_intervals):
             start_date = time_interval['from']
             end_date = time_interval['to']
             date_label = time_interval['label']
+            release_version_end_of_interval = release_versions_for_weeks[(end_date - datetime.timedelta(1)).isoformat()]
+            status_firefox_release_version = f"cf_status_firefox{release_version_end_of_interval}"
             if creation_time >= end_date:
                 continue
-            bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "cf_accessibility_severity", "status", "resolution", "op_sys", "keywords"], start_date, end_date)
+            bug_states = get_relevant_bug_changes(bug_data, ["product", "component", "cf_accessibility_severity", "status", "resolution", "op_sys", "keywords", status_firefox_release_version], start_date, end_date)
             if bug_states["cf_accessibility_severity"]["new"] not in SEVERITIES:
                 continue
             if bug_states["product"]["new"] not in PRODUCTS_TO_CHECK:
@@ -82,6 +85,8 @@ def get_bugs(time_intervals):
                 continue
             if set(["meta", "sec-high", "sec-critical"]) & set(bug_states["keywords"]["new"]):
                 continue
+            if bug_states[status_firefox_release_version]["new"] == "disabled":
+                continue
             team = get_component_to_team(bug_states["product"]["new"], bug_states["component"]["new"]) or "Unknown"
             if team not in teams:
                 teams.add(team)
@@ -101,6 +106,9 @@ def get_bugs(time_intervals):
 
     teams = set()
 
+    release_versions_for_weeks = get_release_versions_for_weeks(time_intervals)
+    status_firefox_latest_keys = [f"cf_status_firefox{release_version}" for release_version in sorted(list(set(release_versions_for_weeks.values())))]
+
     bugs_by_date = {}
     fixed_bugs_by_date = {}
     for data_series in [bugs_by_date, fixed_bugs_by_date]:
@@ -119,7 +127,7 @@ def get_bugs(time_intervals):
               'op_sys',
               'keywords',
               'history',
-             ]
+             ] + status_firefox_latest_keys
 
     params = {
         'include_fields': fields,
